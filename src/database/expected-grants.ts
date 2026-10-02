@@ -1,0 +1,18 @@
+import type { ApiDbRole } from './db-roles.js';
+
+export type TablePrivilege = 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE';
+
+/**
+ * Every table in the `public` schema and the exact rights of each API user.
+ * The grants test fails on any difference with the real database.
+ */
+export const expectedGrants: Record<
+  string,
+  Record<ApiDbRole, TablePrivilege[]>
+> = {
+  foundation_check: {
+    platform_api: ['SELECT', 'INSERT'],
+    studio_api: ['SELECT'],
+    public_api: [],
+  },
+};

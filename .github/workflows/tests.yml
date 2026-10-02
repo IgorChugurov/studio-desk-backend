@@ -1,0 +1,42 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    # Throwaway passwords: the test database lives only for this run.
+    env:
+      APP_ENV: test
+      PORT: '3000'
+      DB_HOST: localhost
+      DB_PORT: '5432'
+      DB_NAME: studio_desk
+      DB_OWNER_PASSWORD: ci-owner
+      DB_PLATFORM_API_PASSWORD: ci-platform
+      DB_STUDIO_API_PASSWORD: ci-studio
+      DB_PUBLIC_API_PASSWORD: ci-public
+      POSTGRES_SUPERUSER_PASSWORD: ci-superuser
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Start PostgreSQL (same compose file and init script as locally)
+        run: pnpm db:up
+
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm test
+      - run: pnpm test:e2e
+      - run: pnpm build
