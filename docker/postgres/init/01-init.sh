@@ -10,7 +10,11 @@ set -euo pipefail
 : "${DB_STUDIO_API_PASSWORD:?}"
 : "${DB_PUBLIC_API_PASSWORD:?}"
 
-TEST_DB_NAME="studio_desk_test"
+DATABASES=("$DB_NAME")
+# The server sets CREATE_TEST_DB=false: it has no test database.
+if [ "${CREATE_TEST_DB:-true}" = "true" ]; then
+  DATABASES+=("studio_desk_test")
+fi
 
 psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER:-postgres}" --dbname postgres \
   -v owner_pw="$DB_OWNER_PASSWORD" \
@@ -23,7 +27,7 @@ CREATE ROLE studio_api LOGIN PASSWORD :'studio_pw';
 CREATE ROLE public_api LOGIN PASSWORD :'public_pw';
 SQL
 
-for db in "$DB_NAME" "$TEST_DB_NAME"; do
+for db in "${DATABASES[@]}"; do
   psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER:-postgres}" --dbname postgres \
     -v db="$db" <<'SQL'
 CREATE DATABASE :"db" OWNER studio_desk_owner;

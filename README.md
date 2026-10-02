@@ -53,4 +53,4 @@ OpenAPI (not in production): `http://localhost:3000/api/<platform|studio|public>
 
 ## Server
 
-The image is built from `Dockerfile`. Migrations run as a separate step before the application starts, under `studio_desk_owner`: `node dist/database/migrate.js`.
+Push to `development` deploys to `https://api.studio-desk.axondigital.xyz` after green tests. Setup and operations: `deploy/README.md`; design: `studio-desk-docs/03-architecture/deployment.md`.
