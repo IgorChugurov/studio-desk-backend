@@ -84,7 +84,7 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 
 `DEPLOY_HOST`, `DEPLOY_USER` (`studio-desk`), `DEPLOY_SSH_KEY` (private half of the deploy key), `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan` output of the server).
 
-After the first image is published, switch the package `studio-desk-backend` to Public once: GitHub → profile → Packages → `studio-desk-backend` → Package settings → Change visibility.
+The image package is linked to the repository by the `org.opencontainers.image.source` label and inherits its public visibility; no manual step is needed.
 
 ## Manual operations (as studio-desk, in /opt/studio-desk)
 
