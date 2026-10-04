@@ -6,11 +6,12 @@ import { StudiosController } from './studios/studios.controller.js';
 import { StudiosService } from './studios/studios.service.js';
 import { MAILER, ResendMailer } from './auth/mailer.js';
 import { PlatformAuthGuard } from './platform-auth.guard.js';
+import { VersionController } from './version/version.controller.js';
 
 /** Platform admin API, served under /api/platform. */
 @Module({
   imports: [DatabaseModule.forApi('platform_api')],
-  controllers: [AuthController, StudiosController],
+  controllers: [AuthController, StudiosController, VersionController],
   providers: [
     PlatformAuthGuard,
     AuthService,

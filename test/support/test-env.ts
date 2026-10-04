@@ -2,3 +2,4 @@
 // instead of the working one, whatever .env says.
 process.env.APP_ENV = 'test';
 process.env.DB_NAME = 'studio_desk_test';
+process.env.CORS_EXTRA_ORIGINS = 'http://admin.localhost:3001';

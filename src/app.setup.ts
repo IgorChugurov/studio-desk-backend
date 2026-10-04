@@ -10,6 +10,7 @@ export function configureApp(app: INestApplication) {
     origin: [
       'https://admin.studio-desk.axondigital.xyz',
       'https://app.studio-desk.axondigital.xyz',
+      ...loadEnv().CORS_EXTRA_ORIGINS,
     ],
     credentials: true,
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Requested-With'],
