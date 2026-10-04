@@ -1,0 +1,24 @@
+# Вход администратора платформы
+
+**Канон:** `studio-desk-docs/01-product/platform-admin/overview.md`, `studio-desk-docs/03-architecture/authentication.md`
+**Контракт:** `studio-desk-docs/01-product/platform-admin/api-contract.md`
+
+Четыре адреса под `/api/platform/auth`: запросить код, войти, обновить вход, выйти. Короткий токен живёт 15 минут и в базе не хранится. Долгий токен лежит в cookie `sd_platform_refresh`, в базе только его хеш.
+
+## Таблицы
+
+- `platform_administrator` — одна строка. Почта берётся из `PLATFORM_ADMIN_EMAIL` после миграций, не из самого файла миграции. Если почта сменилась, живые сессии этого администратора отзываются.
+- `sign_in_code` — один текущий код на адрес. В базе хеш, не сам код. Новый код заменяет предыдущий. После успешного входа строка удаляется. Коды, просроченные больше чем на час, удаляются в начале запроса нового кода. При входе недавно просроченный код не удаляется и отвечает `CODE_EXPIRED`.
+- `session` — один вход. Пока только API платформы. Поля студии и входа под студией появятся в фазе 4.
+
+`platform_api` читает администратора, читает и пишет сессии, коды ещё и удаляет. `studio_api` и `public_api` к этим таблицам не допускаются.
+
+Письмо через Resend уходит только если адрес совпал с администратором. Ответ на запрос кода при этом одинаковый.
+
+## Коды ошибок
+
+`RESEND_TOO_EARLY`, `INVALID_CODE`, `CODE_EXPIRED`, `TOO_MANY_ATTEMPTS`, `SESSION_EXPIRED`. Нет cookie при обновлении входа — `UNAUTHORIZED`. Нет заголовка `X-Requested-With` на обновлении и выходе — `FORBIDDEN`.
+
+## Проверка
+
+Интеграционные тесты: `test/platform-auth.e2e-spec.ts`. Ручная проверка: `StudioDesk_Platform.postman_collection.json`, локально `http://localhost:3000/api/platform`.

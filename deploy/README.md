@@ -40,12 +40,14 @@ chmod 600 /home/studio-desk/.ssh/authorized_keys
 
 ### 3. Deploy folder and `.env`
 
-Passwords are generated on the server and never leave it.
+Passwords are generated on the server and never leave it. `RESEND_API_KEY` is created in the Resend dashboard and `PLATFORM_ADMIN_EMAIL` is the administrator's address; both must already be set in this shell. `ACCESS_TOKEN_SECRET` is generated below, on the server. None of these are written in the repository. Do not run this block again on a server that already has a database: it replaces the file and the database passwords.
 
 ```bash
+test -n "$RESEND_API_KEY"
+test -n "$PLATFORM_ADMIN_EMAIL"
 install -d -m 750 -o studio-desk -g studio-desk /opt/studio-desk
 install -d -m 755 -o studio-desk -g studio-desk /opt/studio-desk/postgres-init
-runuser -u studio-desk -- bash -c 'umask 077; gen() { openssl rand -hex 24; }; cat > /opt/studio-desk/.env <<EOF
+runuser -u studio-desk -- env RESEND_API_KEY="$RESEND_API_KEY" PLATFORM_ADMIN_EMAIL="$PLATFORM_ADMIN_EMAIL" bash -c 'umask 077; gen() { openssl rand -hex 24; }; cat > /opt/studio-desk/.env <<EOF
 APP_ENV=production
 PORT=3000
 DB_HOST=postgres
@@ -56,8 +58,29 @@ DB_PLATFORM_API_PASSWORD=$(gen)
 DB_STUDIO_API_PASSWORD=$(gen)
 DB_PUBLIC_API_PASSWORD=$(gen)
 POSTGRES_SUPERUSER_PASSWORD=$(gen)
+RESEND_API_KEY=$RESEND_API_KEY
+RESEND_FROM_EMAIL=StudioDesk <noreply@axondigital.xyz>
+PLATFORM_ADMIN_EMAIL=$PLATFORM_ADMIN_EMAIL
+ACCESS_TOKEN_SECRET=$(openssl rand -hex 32)
 EOF'
 ls -l /opt/studio-desk/.env
+```
+
+### 3b. Resend on a server that already has `.env`
+
+Appends the missing lines. Does not rewrite passwords or a secret that is already there. `RESEND_API_KEY` and `PLATFORM_ADMIN_EMAIL` are set in this shell and are not printed. `ACCESS_TOKEN_SECRET` is generated on the server when the line is absent.
+
+```bash
+test -n "$RESEND_API_KEY"
+test -n "$PLATFORM_ADMIN_EMAIL"
+runuser -u studio-desk -- env RESEND_API_KEY="$RESEND_API_KEY" PLATFORM_ADMIN_EMAIL="$PLATFORM_ADMIN_EMAIL" bash -c '
+umask 077
+file=/opt/studio-desk/.env
+grep -q "^RESEND_API_KEY=" "$file" || printf "RESEND_API_KEY=%s\n" "$RESEND_API_KEY" >> "$file"
+grep -q "^RESEND_FROM_EMAIL=" "$file" || printf "%s\n" "RESEND_FROM_EMAIL=StudioDesk <noreply@axondigital.xyz>" >> "$file"
+grep -q "^PLATFORM_ADMIN_EMAIL=" "$file" || printf "PLATFORM_ADMIN_EMAIL=%s\n" "$PLATFORM_ADMIN_EMAIL" >> "$file"
+grep -q "^ACCESS_TOKEN_SECRET=" "$file" || printf "ACCESS_TOKEN_SECRET=%s\n" "$(openssl rand -hex 32)" >> "$file"
+'
 ```
 
 ### 4. nginx site and certificate

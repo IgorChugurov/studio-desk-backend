@@ -15,4 +15,19 @@ export const expectedGrants: Record<
     studio_api: ['SELECT'],
     public_api: [],
   },
+  platform_administrator: {
+    platform_api: ['SELECT'],
+    studio_api: [],
+    public_api: [],
+  },
+  session: {
+    platform_api: ['SELECT', 'INSERT', 'UPDATE'],
+    studio_api: [],
+    public_api: [],
+  },
+  sign_in_code: {
+    platform_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+    studio_api: [],
+    public_api: [],
+  },
 };

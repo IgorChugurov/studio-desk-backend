@@ -11,6 +11,10 @@ export const envSchema = z.object({
   DB_PLATFORM_API_PASSWORD: z.string().min(1),
   DB_STUDIO_API_PASSWORD: z.string().min(1),
   DB_PUBLIC_API_PASSWORD: z.string().min(1),
+  RESEND_API_KEY: z.string().min(1),
+  RESEND_FROM_EMAIL: z.string().min(1),
+  PLATFORM_ADMIN_EMAIL: z.email(),
+  ACCESS_TOKEN_SECRET: z.string().min(32),
 });
 
 export type Env = z.infer<typeof envSchema>;
