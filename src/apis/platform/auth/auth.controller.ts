@@ -12,15 +12,10 @@ import { z } from 'zod';
 import { Public } from '../../../common/auth/public.decorator.js';
 import { ApiError } from '../../../common/errors/api-error.js';
 import { ZodBody } from '../../../common/validation/zod.decorators.js';
+import { emailField } from '../../../common/validation/fields.js';
 import { AuthService } from './auth.service.js';
 import { clearRefreshCookie, readCookie, setRefreshCookie } from './cookies.js';
 import { REFRESH_COOKIE } from './tokens.js';
-
-const emailField = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .pipe(z.email({ error: 'Enter a valid e-mail address' }));
 
 const codeRequest = z.object({ email: emailField });
 const signInRequest = z.object({

@@ -5,9 +5,10 @@
   },
   "variable": [
     { "key": "host", "value": "http://localhost:3000/api/platform" },
-    { "key": "email", "value": "admin@example.com" },
+    { "key": "email", "value": "igorchugurov@gmail.com" },
     { "key": "code", "value": "" },
-    { "key": "accessToken", "value": "" }
+    { "key": "accessToken", "value": "" },
+    { "key": "studioId", "value": "" }
   ],
   "item": [
     {
@@ -35,7 +36,19 @@
               "raw": "{\n  \"email\": \"{{email}}\",\n  \"code\": \"{{code}}\"\n}"
             },
             "url": "{{host}}/auth/sign-in"
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Refresh",
@@ -43,7 +56,19 @@
             "method": "POST",
             "header": [{ "key": "X-Requested-With", "value": "fetch" }],
             "url": "{{host}}/auth/refresh"
-          }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Sign out",
@@ -51,6 +76,73 @@
             "method": "POST",
             "header": [{ "key": "X-Requested-With", "value": "fetch" }],
             "url": "{{host}}/auth/sign-out"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Studios",
+      "item": [
+        {
+          "name": "List studios",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/studios"
+          }
+        },
+        {
+          "name": "Create studio",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Yoga Space\",\n  \"subdomain\": \"yoga\",\n  \"owner\": { \"email\": \"owner@example.com\" }\n}"
+            },
+            "url": "{{host}}/studios"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.id) pm.collectionVariables.set('studioId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get studio",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/studios/{{studioId}}"
+          }
+        },
+        {
+          "name": "Update studio",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner\": { \"email\": \"new-owner@example.com\" }\n}"
+            },
+            "url": "{{host}}/studios/{{studioId}}"
           }
         }
       ]

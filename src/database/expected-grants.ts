@@ -30,4 +30,9 @@ export const expectedGrants: Record<
     studio_api: [],
     public_api: [],
   },
+  studio: {
+    platform_api: ['SELECT', 'INSERT', 'UPDATE'],
+    studio_api: [],
+    public_api: [],
+  },
 };
