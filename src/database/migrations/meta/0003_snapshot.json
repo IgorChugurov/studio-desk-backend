@@ -1,0 +1,475 @@
+{
+  "id": "a87668e2-a516-42dd-a407-e0bddfe752dd",
+  "prevId": "c3197f58-48c8-4cda-844f-0674134501cb",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.foundation_check": {
+      "name": "foundation_check",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.session": {
+      "name": "session",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "platform_administrator_id": {
+          "name": "platform_administrator_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "api": {
+          "name": "api",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token_hash": {
+          "name": "refresh_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previous_refresh_token_hash": {
+          "name": "previous_refresh_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rotated_at": {
+          "name": "rotated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "session_platform_administrator_id_platform_administrator_id_fk": {
+          "name": "session_platform_administrator_id_platform_administrator_id_fk",
+          "tableFrom": "session",
+          "tableTo": "platform_administrator",
+          "columnsFrom": [
+            "platform_administrator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "session_refresh_token_hash_unique": {
+          "name": "session_refresh_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "refresh_token_hash"
+          ]
+        },
+        "session_previous_refresh_token_hash_unique": {
+          "name": "session_previous_refresh_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "previous_refresh_token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "session_api": {
+          "name": "session_api",
+          "value": "\"session\".\"api\" in ('platform', 'studio')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.handoff_code": {
+      "name": "handoff_code",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "studio_id": {
+          "name": "studio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "platform_administrator_id": {
+          "name": "platform_administrator_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "handoff_code_studio_id_studio_id_fk": {
+          "name": "handoff_code_studio_id_studio_id_fk",
+          "tableFrom": "handoff_code",
+          "tableTo": "studio",
+          "columnsFrom": [
+            "studio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "handoff_code_platform_administrator_id_platform_administrator_id_fk": {
+          "name": "handoff_code_platform_administrator_id_platform_administrator_id_fk",
+          "tableFrom": "handoff_code",
+          "tableTo": "platform_administrator",
+          "columnsFrom": [
+            "platform_administrator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "handoff_code_code_hash_unique": {
+          "name": "handoff_code_code_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.platform_administrator": {
+      "name": "platform_administrator",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "platform_administrator_one_row": {
+          "name": "platform_administrator_one_row",
+          "columns": [
+            {
+              "expression": "true",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "platform_administrator_email_unique": {
+          "name": "platform_administrator_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "platform_administrator_email_lower": {
+          "name": "platform_administrator_email_lower",
+          "value": "\"platform_administrator\".\"email\" = lower(\"platform_administrator\".\"email\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.sign_in_code": {
+      "name": "sign_in_code",
+      "schema": "",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts_remaining": {
+          "name": "attempts_remaining",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "sign_in_code_email_lower": {
+          "name": "sign_in_code_email_lower",
+          "value": "\"sign_in_code\".\"email\" = lower(\"sign_in_code\".\"email\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.studio": {
+      "name": "studio",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subdomain": {
+          "name": "subdomain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "custom_domain": {
+          "name": "custom_domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_email": {
+          "name": "owner_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "studio_subdomain_unique": {
+          "name": "studio_subdomain_unique",
+          "columns": [
+            {
+              "expression": "subdomain",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "studio_custom_domain_unique": {
+          "name": "studio_custom_domain_unique",
+          "columns": [
+            {
+              "expression": "custom_domain",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"studio\".\"custom_domain\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "studio_name_length": {
+          "name": "studio_name_length",
+          "value": "char_length(\"studio\".\"name\") between 2 and 100 and \"studio\".\"name\" = btrim(\"studio\".\"name\")"
+        },
+        "studio_subdomain_format": {
+          "name": "studio_subdomain_format",
+          "value": "\"studio\".\"subdomain\" = lower(\"studio\".\"subdomain\") and \"studio\".\"subdomain\" ~ $1"
+        },
+        "studio_custom_domain_format": {
+          "name": "studio_custom_domain_format",
+          "value": "\"studio\".\"custom_domain\" is null or (\n        \"studio\".\"custom_domain\" = lower(\"studio\".\"custom_domain\")\n        and char_length(\"studio\".\"custom_domain\") between 1 and 253\n        and \"studio\".\"custom_domain\" !~ '://'\n        and \"studio\".\"custom_domain\" ~ $1\n        and \"studio\".\"custom_domain\" <> 'studio-desk.axondigital.xyz'\n        and \"studio\".\"custom_domain\" !~ '\\.studio-desk\\.axondigital\\.xyz$'\n      )"
+        },
+        "studio_owner_email_lower": {
+          "name": "studio_owner_email_lower",
+          "value": "\"studio\".\"owner_email\" = lower(\"studio\".\"owner_email\") and position('@' in \"studio\".\"owner_email\") > 1"
+        },
+        "studio_status": {
+          "name": "studio_status",
+          "value": "\"studio\".\"status\" in ('active', 'deactivated')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

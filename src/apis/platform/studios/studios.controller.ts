@@ -1,5 +1,14 @@
-import { Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Req,
+} from '@nestjs/common';
 import { ApiResponse } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { z } from 'zod';
 import { ApiError } from '../../../common/errors/api-error.js';
 import {
@@ -12,6 +21,7 @@ import {
   ZodBody,
   ZodQuery,
 } from '../../../common/validation/zod.decorators.js';
+import type { PlatformRequest } from '../platform-auth.guard.js';
 import { StudiosService } from './studios.service.js';
 
 const createBody = z.object({
@@ -70,6 +80,27 @@ export class StudiosController {
         : {}),
       ...(body.owner ? { ownerEmail: body.owner.email } : {}),
     });
+  }
+
+  @Post(':id/deactivate')
+  @HttpCode(200)
+  deactivate(@Param('id') id: string) {
+    return this.studios.setStatus(parseId(id), 'deactivated');
+  }
+
+  @Post(':id/activate')
+  @HttpCode(200)
+  activate(@Param('id') id: string) {
+    return this.studios.setStatus(parseId(id), 'active');
+  }
+
+  @Post(':id/impersonate')
+  @HttpCode(200)
+  impersonate(@Param('id') id: string, @Req() request: Request) {
+    const administratorId = (request as PlatformRequest)
+      .platformAdministratorId;
+    if (!administratorId) throw ApiError.unauthorized();
+    return this.studios.impersonate(parseId(id), administratorId);
   }
 }
 

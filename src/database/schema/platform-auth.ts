@@ -8,6 +8,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { studio } from './studio.js';
 
 /** The single platform administrator. The row itself is not inserted by a migration. */
 export const platformAdministrator = pgTable(
@@ -68,3 +69,23 @@ export const authSession = pgTable(
     check('session_api', sql`${table.api} in ('platform', 'studio')`),
   ],
 );
+
+/**
+ * A one-time code that hands a platform administrator over to a studio admin
+ * (log in as studio). Only the hash is stored.
+ */
+export const handoffCode = pgTable('handoff_code', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  codeHash: text('code_hash').notNull().unique(),
+  studioId: uuid('studio_id')
+    .notNull()
+    .references(() => studio.id),
+  platformAdministratorId: uuid('platform_administrator_id')
+    .notNull()
+    .references(() => platformAdministrator.id),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  usedAt: timestamp('used_at', { withTimezone: true }),
+});

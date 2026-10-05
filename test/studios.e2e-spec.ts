@@ -191,6 +191,118 @@ describe('studios', () => {
     );
     expect(closed.status).toBe(401);
   });
+
+  describe('status and log in as studio', () => {
+    async function createStudio() {
+      const res = await request(app.getHttpServer())
+        .post('/api/platform/studios')
+        .set('Authorization', `Bearer ${token}`)
+        .send(body());
+      return res.body.id as string;
+    }
+
+    function post(path: string) {
+      return request(app.getHttpServer())
+        .post(`/api/platform/studios/${path}`)
+        .set('Authorization', `Bearer ${token}`);
+    }
+
+    it('deactivates and activates, and the list follows the filter', async () => {
+      const id = await createStudio();
+
+      const off = await post(`${id}/deactivate`);
+      expect(off.status).toBe(200);
+      expect(off.body.status).toBe('deactivated');
+      expect(off.body.id).toBe(id);
+      expect(off.body.owner).toEqual({ email: 'owner@example.com' });
+
+      const active = await request(app.getHttpServer())
+        .get('/api/platform/studios')
+        .set('Authorization', `Bearer ${token}`);
+      expect(active.body.items).toHaveLength(0);
+      const deactivated = await request(app.getHttpServer())
+        .get('/api/platform/studios?status=deactivated')
+        .set('Authorization', `Bearer ${token}`);
+      expect(deactivated.body.items).toHaveLength(1);
+
+      const on = await post(`${id}/activate`);
+      expect(on.status).toBe(200);
+      expect(on.body.status).toBe('active');
+    });
+
+    it('a repeat call changes nothing', async () => {
+      const id = await createStudio();
+      const first = await post(`${id}/deactivate`);
+      const second = await post(`${id}/deactivate`);
+      expect(second.status).toBe(200);
+      expect(second.body).toEqual(first.body);
+
+      const again = await post(`${id}/activate`);
+      const repeat = await post(`${id}/activate`);
+      expect(repeat.status).toBe(200);
+      expect(repeat.body).toEqual(again.body);
+    });
+
+    it('answers 404 for an unknown or malformed id and 401 without a token', async () => {
+      for (const action of ['deactivate', 'activate', 'impersonate']) {
+        const unknown = await post(
+          `00000000-0000-4000-8000-000000000000/${action}`,
+        );
+        expect({ action, status: unknown.status }).toEqual({
+          action,
+          status: 404,
+        });
+        expect(unknown.body.code).toBe('NOT_FOUND');
+        const malformed = await post(`not-an-id/${action}`);
+        expect(malformed.status).toBe(404);
+        const closed = await request(app.getHttpServer()).post(
+          `/api/platform/studios/00000000-0000-4000-8000-000000000000/${action}`,
+        );
+        expect(closed.status).toBe(401);
+      }
+    });
+
+    it('issues a one-time code for 60 seconds and stores only its hash', async () => {
+      const id = await createStudio();
+      const first = await post(`${id}/impersonate`);
+      expect(first.status).toBe(200);
+      expect(first.body.expiresIn).toBe(60);
+      expect(typeof first.body.code).toBe('string');
+      expect(first.body.code.length).toBeGreaterThanOrEqual(40);
+      const second = await post(`${id}/impersonate`);
+      expect(second.body.code).not.toBe(first.body.code);
+
+      const pool = ownerPool();
+      const rows = await pool.query<{
+        code_hash: string;
+        studio_id: string;
+        used_at: Date | null;
+        ttl: number;
+      }>(
+        `select code_hash, studio_id, used_at,
+                extract(epoch from (expires_at - created_at))::int as ttl
+           from handoff_code`,
+      );
+      await pool.end();
+      expect(rows.rows).toHaveLength(2);
+      for (const row of rows.rows) {
+        expect(row.studio_id).toBe(id);
+        expect(row.used_at).toBeNull();
+        expect(row.ttl).toBe(60);
+        expect([first.body.code, second.body.code]).not.toContain(
+          row.code_hash,
+        );
+      }
+    });
+
+    it('issues a code for a deactivated studio', async () => {
+      const id = await createStudio();
+      await post(`${id}/deactivate`);
+      const res = await post(`${id}/impersonate`);
+      expect(res.status).toBe(200);
+      expect(res.body.expiresIn).toBe(60);
+    });
+  });
 });
 
 function body(over: Record<string, unknown> = {}) {

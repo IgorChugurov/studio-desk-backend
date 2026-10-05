@@ -1,11 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { ApiError } from '../../../common/errors/api-error.js';
 import {
   type Database,
   PLATFORM_DB,
 } from '../../../database/database.module.js';
-import { studio } from '../../../database/schema/index.js';
+import { handoffCode, studio } from '../../../database/schema/index.js';
+import {
+  HANDOFF_CODE_TTL_SECONDS,
+  newHandoffCode,
+  sha256,
+} from '../auth/tokens.js';
 
 const RESERVED_SUBDOMAINS = ['api', 'admin', 'app', 'www'] as const;
 
@@ -133,6 +138,30 @@ export class StudiosService {
       if (taken) throw taken;
       throw error;
     }
+  }
+
+  /** Sets the status. A repeat call changes nothing and returns the studio. */
+  async setStatus(id: string, status: 'active' | 'deactivated') {
+    const updated = await this.db
+      .update(studio)
+      .set({ status, updatedAt: new Date() })
+      .where(and(eq(studio.id, id), ne(studio.status, status)))
+      .returning();
+    const row = updated[0];
+    return row ? toStudio(row) : this.get(id);
+  }
+
+  /** Issues a one-time handoff code for the studio, in any status. */
+  async impersonate(id: string, administratorId: string) {
+    await this.get(id);
+    const code = newHandoffCode();
+    await this.db.insert(handoffCode).values({
+      codeHash: sha256(code),
+      studioId: id,
+      platformAdministratorId: administratorId,
+      expiresAt: new Date(Date.now() + HANDOFF_CODE_TTL_SECONDS * 1000),
+    });
+    return { code, expiresIn: HANDOFF_CODE_TTL_SECONDS };
   }
 
   private async takenError(

@@ -144,6 +144,36 @@
             },
             "url": "{{host}}/studios/{{studioId}}"
           }
+        },
+        {
+          "name": "Deactivate studio",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/studios/{{studioId}}/deactivate"
+          }
+        },
+        {
+          "name": "Activate studio",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/studios/{{studioId}}/activate"
+          }
+        },
+        {
+          "name": "Log in as studio",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/studios/{{studioId}}/impersonate"
+          }
         }
       ]
     }

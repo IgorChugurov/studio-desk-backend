@@ -15,6 +15,11 @@ export const expectedGrants: Record<
     studio_api: ['SELECT'],
     public_api: [],
   },
+  handoff_code: {
+    platform_api: ['SELECT', 'INSERT'],
+    studio_api: [],
+    public_api: [],
+  },
   platform_administrator: {
     platform_api: ['SELECT'],
     studio_api: [],

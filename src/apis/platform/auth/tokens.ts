@@ -13,6 +13,7 @@ export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 export const SESSION_SLIDING_MS = 30 * 24 * 60 * 60 * 1000;
 export const SESSION_ABSOLUTE_MS = 90 * 24 * 60 * 60 * 1000;
 export const ROTATION_WINDOW_MS = 10 * 1000;
+export const HANDOFF_CODE_TTL_SECONDS = 60;
 export const REFRESH_COOKIE = 'sd_platform_refresh';
 export const REFRESH_COOKIE_PATH = '/api/platform/auth';
 
@@ -21,6 +22,10 @@ export function newSignInCode(): string {
 }
 
 export function newRefreshToken(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+export function newHandoffCode(): string {
   return randomBytes(32).toString('base64url');
 }
 
