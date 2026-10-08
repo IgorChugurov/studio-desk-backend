@@ -124,16 +124,31 @@ export class StudiosService {
       ownerEmail: patch.ownerEmail ?? current.owner.email,
     };
     if (patch.subdomain) assertReserved(patch.subdomain);
+    const previousOwner = current.owner.email;
+    const ownerChanged = next.ownerEmail !== previousOwner;
     try {
-      const updated = await this.db
-        .update(studio)
-        .set({ ...toValues(next), updatedAt: new Date() })
-        .where(sql`${studio.id} = ${id}`)
-        .returning();
-      const row = updated[0];
-      if (!row) throw ApiError.notFound('Studio not found');
-      return toStudio(row);
+      return await this.db.transaction(async (tx) => {
+        if (ownerChanged) await assertOwnerIsNotStaff(tx, id, next.ownerEmail);
+        const updated = await tx
+          .update(studio)
+          .set({ ...toValues(next), updatedAt: new Date() })
+          .where(sql`${studio.id} = ${id}`)
+          .returning();
+        const row = updated[0];
+        if (!row) throw ApiError.notFound('Studio not found');
+        if (ownerChanged) {
+          await tx.execute(sql`
+            update studio_session
+               set revoked_at = now()
+             where studio_id = ${id}
+               and email = ${previousOwner}
+               and revoked_at is null
+          `);
+        }
+        return toStudio(row);
+      });
     } catch (error) {
+      if (error instanceof ApiError) throw error;
       const taken = await this.takenError(error, next, id);
       if (taken) throw taken;
       throw error;
@@ -142,13 +157,25 @@ export class StudiosService {
 
   /** Sets the status. A repeat call changes nothing and returns the studio. */
   async setStatus(id: string, status: 'active' | 'deactivated') {
-    const updated = await this.db
-      .update(studio)
-      .set({ status, updatedAt: new Date() })
-      .where(and(eq(studio.id, id), ne(studio.status, status)))
-      .returning();
-    const row = updated[0];
-    return row ? toStudio(row) : this.get(id);
+    return this.db.transaction(async (tx) => {
+      const updated = await tx
+        .update(studio)
+        .set({ status, updatedAt: new Date() })
+        .where(and(eq(studio.id, id), ne(studio.status, status)))
+        .returning();
+      const row = updated[0];
+      if (!row) return this.get(id);
+      if (status === 'deactivated') {
+        await tx.execute(sql`
+          update studio_session
+             set revoked_at = now()
+           where studio_id = ${id}
+             and revoked_at is null
+             and impersonated_by is null
+        `);
+      }
+      return toStudio(row);
+    });
   }
 
   /** Issues a one-time handoff code for the studio, in any status. */
@@ -199,6 +226,26 @@ export class StudiosService {
        limit 1
     `);
     return rows.rows.length > 0;
+  }
+}
+
+async function assertOwnerIsNotStaff(
+  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
+  studioId: string,
+  email: string,
+) {
+  const staff = await tx.execute(sql`
+    select 1 from studio_staff
+     where studio_id = ${studioId} and email = ${email}
+     limit 1
+  `);
+  if (staff.rows.length > 0) {
+    throw new ApiError({
+      statusCode: 409,
+      code: 'OWNER_IS_STAFF',
+      message: 'This e-mail is already a staff member of this studio',
+      field: 'owner.email',
+    });
   }
 }
 

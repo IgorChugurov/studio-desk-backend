@@ -20,6 +20,7 @@ import { ApiError } from '../../../common/errors/api-error.js';
 import { loadEnv } from '../../../config/env.js';
 import { type Database, STUDIO_DB } from '../../../database/database.module.js';
 import {
+  handoffCode,
   studioSelectionTicket,
   studioSession,
   studioSignInCode,
@@ -362,6 +363,45 @@ export class StudioAuthService {
     return outcome.value;
   }
 
+  /** Turns a one-time handoff code into an owner session marked impersonated_by. */
+  async exchange(code: string): Promise<SessionResult> {
+    return this.db.transaction(async (tx) => {
+      const found = await tx.execute(sql`
+        select id, studio_id, platform_administrator_id, expires_at, used_at
+          from handoff_code
+         where code_hash = ${sha256(code)}
+         for update
+      `);
+      const row = found.rows[0] as HandoffRow | undefined;
+      const now = new Date();
+      if (
+        !row ||
+        row.used_at ||
+        new Date(row.expires_at).getTime() <= now.getTime()
+      ) {
+        throw invalidHandoff();
+      }
+      await tx
+        .update(handoffCode)
+        .set({ usedAt: now })
+        .where(eq(handoffCode.id, row.id));
+      const studios = await tx.execute(sql`
+        select id, name, owner_email
+          from studio
+         where id = ${row.studio_id}
+      `);
+      const studio = studios.rows[0] as
+        { id: string; name: string; owner_email: string } | undefined;
+      if (!studio) throw invalidHandoff();
+      return createSession(
+        tx,
+        studio.owner_email,
+        { id: studio.id, name: studio.name },
+        row.platform_administrator_id,
+      );
+    });
+  }
+
   async signOut(refreshToken: string | undefined) {
     if (!refreshToken) return;
     const hash = sha256(refreshToken);
@@ -496,6 +536,14 @@ interface TicketRow {
   used_at: Date | string | null;
 }
 
+interface HandoffRow {
+  id: string;
+  studio_id: string;
+  platform_administrator_id: string;
+  expires_at: Date | string;
+  used_at: Date | string | null;
+}
+
 interface SessionRow {
   id: string;
   studio_id: string;
@@ -515,6 +563,14 @@ function isUniqueViolation(error: unknown): boolean {
     current = 'cause' in current ? current.cause : undefined;
   }
   return false;
+}
+
+function invalidHandoff() {
+  return new ApiError({
+    statusCode: 400,
+    code: 'INVALID_HANDOFF_CODE',
+    message: 'This code is invalid or has expired',
+  });
 }
 
 function signInError(

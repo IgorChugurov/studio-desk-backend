@@ -17,7 +17,7 @@ export const expectedGrants: Record<
   },
   handoff_code: {
     platform_api: ['SELECT', 'INSERT'],
-    studio_api: [],
+    studio_api: ['SELECT', 'UPDATE'],
     public_api: [],
   },
   platform_administrator: {
@@ -46,7 +46,7 @@ export const expectedGrants: Record<
     public_api: [],
   },
   studio_session: {
-    platform_api: [],
+    platform_api: ['SELECT', 'UPDATE'],
     studio_api: ['SELECT', 'INSERT', 'UPDATE'],
     public_api: [],
   },
@@ -56,7 +56,7 @@ export const expectedGrants: Record<
     public_api: [],
   },
   studio_staff: {
-    platform_api: [],
+    platform_api: ['SELECT'],
     studio_api: ['SELECT'],
     public_api: [],
   },

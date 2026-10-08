@@ -36,6 +36,7 @@ const selectStudioRequest = z.object({
   studioId: z.uuid(),
 });
 const switchStudioRequest = z.object({ studioId: z.uuid() });
+const exchangeRequest = z.object({ code: z.string().min(1) });
 
 @Controller('auth')
 export class StudioAuthController {
@@ -103,6 +104,23 @@ export class StudioAuthController {
     const current = request.studioSession;
     if (!current) throw ApiError.unauthorized();
     const session = await this.auth.switchStudio(current, body.studioId);
+    setRefreshCookie(response, STUDIO_COOKIE, session.refreshToken);
+    return sessionBody(session);
+  }
+
+  @Public()
+  @Post('impersonation/exchange')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'session body' })
+  @ApiResponse({ status: 400, description: 'INVALID_HANDOFF_CODE' })
+  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
+  async exchange(
+    @Req() request: Request,
+    @ZodBody(exchangeRequest) body: z.infer<typeof exchangeRequest>,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    requireRequestedWith(request);
+    const session = await this.auth.exchange(body.code);
     setRefreshCookie(response, STUDIO_COOKIE, session.refreshToken);
     return sessionBody(session);
   }

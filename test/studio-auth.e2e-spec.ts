@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { MAILER, type Mailer } from '../src/common/auth/mailer.js';
-import { signAccessToken } from '../src/common/auth/tokens.js';
+import { sha256, signAccessToken } from '../src/common/auth/tokens.js';
 import { loadEnv } from '../src/config/env.js';
 import { createTestApp } from './support/app.js';
 import { ownerPool } from './support/db.js';
@@ -571,6 +571,70 @@ describe('studio sign-in', () => {
       expect(withoutCookie.status).toBe(204);
       const withoutHeader = await http().post('/api/studio/auth/sign-out');
       expect(withoutHeader.status).toBe(403);
+    });
+  });
+
+  describe('log in as studio', () => {
+    async function handoff(
+      studioId: string,
+      code: string,
+      when = "now() + interval '60 seconds'",
+    ) {
+      const admin = await sql<{ id: string }>(
+        `insert into platform_administrator (email) values ('admin@example.com') returning id`,
+      );
+      await sql(
+        `insert into handoff_code (code_hash, studio_id, platform_administrator_id, expires_at)
+         values ($1, $2, $3, ${when})`,
+        [sha256(code), studioId, admin[0]!.id],
+      );
+      return admin[0]!.id;
+    }
+
+    function exchange(code: string, header = true) {
+      const req = http()
+        .post('/api/studio/auth/impersonation/exchange')
+        .send({ code });
+      return header ? req.set('X-Requested-With', 'fetch') : req;
+    }
+
+    it('exchanges a code for the owner session, including a deactivated studio, once', async () => {
+      const yoga = await createStudio('Yoga', ANNA, 'deactivated');
+      const adminId = await handoff(yoga, 'fresh-code');
+
+      const opened = await exchange('fresh-code');
+      expect(opened.status).toBe(200);
+      expect(opened.body.user).toEqual({ email: ANNA });
+      expect(opened.body.studio).toEqual({ id: yoga, name: 'Yoga' });
+      expect(refreshCookie(opened)).toBeTruthy();
+      expect((await withBearer(opened.body.accessToken as string)).status).toBe(
+        200,
+      );
+
+      const marked = await sql<{ impersonated_by: string }>(
+        `select impersonated_by from studio_session where studio_id = $1`,
+        [yoga],
+      );
+      expect(marked[0]?.impersonated_by).toBe(adminId);
+
+      const again = await exchange('fresh-code');
+      expect(again.status).toBe(400);
+      expect(again.body.code).toBe('INVALID_HANDOFF_CODE');
+    });
+
+    it('rejects an unknown or expired code and requires the header', async () => {
+      const yoga = await createStudio('Yoga', ANNA);
+      await handoff(yoga, 'old-code', "now() - interval '1 second'");
+
+      const expired = await exchange('old-code');
+      expect(expired.status).toBe(400);
+      expect(expired.body.code).toBe('INVALID_HANDOFF_CODE');
+
+      const unknown = await exchange('missing-code');
+      expect(unknown.status).toBe(400);
+      expect(unknown.body.code).toBe('INVALID_HANDOFF_CODE');
+
+      expect((await exchange('old-code', false)).status).toBe(403);
     });
   });
 });

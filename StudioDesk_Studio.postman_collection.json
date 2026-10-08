@@ -11,7 +11,8 @@
     { "key": "previousAccessToken", "value": "" },
     { "key": "selectionTicket", "value": "" },
     { "key": "studioId", "value": "" },
-    { "key": "otherStudioId", "value": "" }
+    { "key": "otherStudioId", "value": "" },
+    { "key": "handoffCode", "value": "" }
   ],
   "item": [
     {
@@ -143,6 +144,34 @@
             },
             "url": "{{host}}/auth/switch-studio"
           }
+        },
+        {
+          "name": "Exchange handoff code",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Requested-With", "value": "fetch" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{handoffCode}}\"\n}"
+            },
+            "url": "{{host}}/auth/impersonation/exchange"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "if (body.studio) pm.collectionVariables.set('studioId', body.studio.id);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Refresh",

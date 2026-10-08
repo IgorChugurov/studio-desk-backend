@@ -166,7 +166,7 @@ describe('studios', () => {
     expect(res.body.items).toEqual([]);
   });
 
-  it('changes the owner e-mail without touching sessions', async () => {
+  it('changes the owner e-mail', async () => {
     const created = await request(app.getHttpServer())
       .post('/api/platform/studios')
       .set('Authorization', `Bearer ${token}`)
@@ -302,8 +302,154 @@ describe('studios', () => {
       expect(res.status).toBe(200);
       expect(res.body.expiresIn).toBe(60);
     });
+
+    it('revokes open sessions on deactivation, except log-in-as-studio ones', async () => {
+      const id = await createStudio();
+      const owner = await insertSession(id, 'owner@example.com');
+      const staff = await insertSession(id, 'staff@example.com');
+      const impersonated = await insertSession(
+        id,
+        'owner@example.com',
+        await adminId(),
+      );
+
+      await post(`${id}/deactivate`);
+      expect(await revoked(owner)).toBe(true);
+      expect(await revoked(staff)).toBe(true);
+      expect(await revoked(impersonated)).toBe(false);
+
+      await post(`${id}/activate`);
+      expect(await revoked(owner)).toBe(true);
+      expect(await revoked(impersonated)).toBe(false);
+
+      await post(`${id}/deactivate`);
+      expect(await revoked(impersonated)).toBe(false);
+    });
+  });
+
+  it('revokes the previous owner sessions, including log-in-as-studio, only in this studio', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/platform/studios')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body());
+    const other = await request(app.getHttpServer())
+      .post('/api/platform/studios')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body({ name: 'Other', subdomain: 'other' }));
+    const id = created.body.id as string;
+    const owner = await insertSession(id, 'owner@example.com');
+    const impersonated = await insertSession(
+      id,
+      'owner@example.com',
+      await adminId(),
+    );
+    const staff = await insertSession(id, 'staff@example.com');
+    const elsewhere = await insertSession(
+      other.body.id as string,
+      'owner@example.com',
+    );
+
+    const updated = await request(app.getHttpServer())
+      .patch(`/api/platform/studios/${id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ owner: { email: 'next@example.com' } });
+    expect(updated.status).toBe(200);
+    expect(await revoked(owner)).toBe(true);
+    expect(await revoked(impersonated)).toBe(true);
+    expect(await revoked(staff)).toBe(false);
+    expect(await revoked(elsewhere)).toBe(false);
+  });
+
+  it('rejects an owner change to a current staff e-mail and leaves the owner', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/platform/studios')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body());
+    const id = created.body.id as string;
+    const pool = ownerPool();
+    await pool.query(
+      `insert into studio_staff (studio_id, email, role) values ($1, 'staff@example.com', 'accountant')`,
+      [id],
+    );
+    await pool.end();
+
+    const updated = await request(app.getHttpServer())
+      .patch(`/api/platform/studios/${id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ owner: { email: 'Staff@Example.com' } });
+    expect(updated.status).toBe(409);
+    expect(updated.body.code).toBe('OWNER_IS_STAFF');
+    expect(updated.body.field).toBe('owner.email');
+
+    const still = await request(app.getHttpServer())
+      .get(`/api/platform/studios/${id}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(still.body.owner).toEqual({ email: 'owner@example.com' });
+  });
+
+  it('allows an e-mail that is staff of another studio to become the owner', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/platform/studios')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body());
+    const other = await request(app.getHttpServer())
+      .post('/api/platform/studios')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body({ name: 'Other', subdomain: 'other' }));
+    const pool = ownerPool();
+    await pool.query(
+      `insert into studio_staff (studio_id, email, role) values ($1, 'staff@example.com', 'administrator')`,
+      [other.body.id],
+    );
+    await pool.end();
+
+    const updated = await request(app.getHttpServer())
+      .patch(`/api/platform/studios/${created.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ owner: { email: 'staff@example.com' } });
+    expect(updated.status).toBe(200);
+    expect(updated.body.owner).toEqual({ email: 'staff@example.com' });
   });
 });
+
+async function adminId() {
+  const pool = ownerPool();
+  const rows = await pool.query<{ id: string }>(
+    `select id from platform_administrator`,
+  );
+  await pool.end();
+  const id = rows.rows[0]?.id;
+  if (!id) throw new Error('platform administrator was not created');
+  return id;
+}
+
+async function insertSession(
+  studioId: string,
+  email: string,
+  impersonatedBy: string | null = null,
+) {
+  const pool = ownerPool();
+  const rows = await pool.query<{ id: string }>(
+    `insert into studio_session (studio_id, email, expires_at, refresh_token_hash, impersonated_by)
+     values ($1, $2, now() + interval '1 day', gen_random_uuid()::text, $3)
+     returning id`,
+    [studioId, email, impersonatedBy],
+  );
+  await pool.end();
+  const id = rows.rows[0]?.id;
+  if (!id) throw new Error('session was not created');
+  return id;
+}
+
+async function revoked(sessionId: string) {
+  const pool = ownerPool();
+  const rows = await pool.query<{ revoked_at: Date | null }>(
+    `select revoked_at from studio_session where id = $1`,
+    [sessionId],
+  );
+  await pool.end();
+  return rows.rows[0]?.revoked_at != null;
+}
 
 function body(over: Record<string, unknown> = {}) {
   return {
