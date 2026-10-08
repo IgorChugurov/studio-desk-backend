@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { ApiError } from '../../../common/errors/api-error.js';
 import { type Database, STUDIO_DB } from '../../../database/database.module.js';
 import { currency, studio } from '../../../database/schema/index.js';
+import { StudioAccessService } from '../access/studio-access.service.js';
 import type { StudioSessionInfo } from '../auth/studio-auth.service.js';
 import {
   COUNTRIES,
@@ -14,15 +15,18 @@ type Patch = Partial<StudioSettings>;
 
 @Injectable()
 export class StudioSettingsService {
-  constructor(@Inject(STUDIO_DB) private readonly db: Database) {}
+  constructor(
+    @Inject(STUDIO_DB) private readonly db: Database,
+    private readonly access: StudioAccessService,
+  ) {}
 
   async get(session: StudioSessionInfo): Promise<StudioSettings> {
-    await this.assertOwner(session);
+    await this.access.assertSection(session, 'studio-settings');
     return this.read(session.studioId);
   }
 
   async options(session: StudioSessionInfo) {
-    await this.assertOwner(session);
+    await this.access.assertSection(session, 'studio-settings');
     const rows = await this.db
       .select({ code: currency.code })
       .from(currency)
@@ -38,7 +42,7 @@ export class StudioSettingsService {
     session: StudioSessionInfo,
     patch: Patch,
   ): Promise<StudioSettings> {
-    await this.assertOwner(session);
+    await this.access.assertSection(session, 'studio-settings');
     if (patch.currency !== undefined) {
       const found = await this.db
         .select({ code: currency.code })
@@ -67,20 +71,6 @@ export class StudioSettingsService {
         .where(eq(studio.id, session.studioId));
     }
     return this.read(session.studioId);
-  }
-
-  private async assertOwner(session: StudioSessionInfo) {
-    const rows = await this.db.execute<{ owner_email: string }>(sql`
-      select owner_email from studio where id = ${session.studioId}
-    `);
-    const owner = rows.rows[0]?.owner_email;
-    if (owner !== session.email) {
-      throw new ApiError({
-        statusCode: 403,
-        code: 'FORBIDDEN',
-        message: "You don't have access to this page",
-      });
-    }
   }
 
   private async read(studioId: string): Promise<StudioSettings> {

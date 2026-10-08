@@ -50,6 +50,20 @@
       "when": 1791446299529,
       "tag": "0006_harsh_cardiac",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791451503160,
+      "tag": "0007_mighty_ezekiel",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791452677290,
+      "tag": "0008_thin_mindworm",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,11 @@ export const expectedGrants: Record<
     studio_api: ['SELECT'],
     public_api: [],
   },
+  interface_language: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE'],
+    public_api: [],
+  },
   handoff_code: {
     platform_api: ['SELECT', 'INSERT'],
     studio_api: ['SELECT', 'UPDATE'],
@@ -28,6 +33,11 @@ export const expectedGrants: Record<
   platform_administrator: {
     platform_api: ['SELECT'],
     studio_api: [],
+    public_api: [],
+  },
+  role_section: {
+    platform_api: [],
+    studio_api: ['SELECT'],
     public_api: [],
   },
   session: {
@@ -62,7 +72,7 @@ export const expectedGrants: Record<
   },
   studio_staff: {
     platform_api: ['SELECT'],
-    studio_api: ['SELECT'],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
     public_api: [],
   },
 };

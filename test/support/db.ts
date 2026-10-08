@@ -19,7 +19,12 @@ export async function truncateAllTables(pool: pg.Pool) {
     `select tablename from pg_tables where schemaname = 'public'`,
   );
   if (rows.length === 0) return;
-  const tables = rows.map((r) => `"public"."${r.tablename}"`).join(', ');
+  const keep = new Set(['currency', 'role_section']);
+  const tables = rows
+    .filter((r) => !keep.has(r.tablename))
+    .map((r) => `"public"."${r.tablename}"`)
+    .join(', ');
+  if (tables.length === 0) return;
   await pool.query(`truncate ${tables} restart identity cascade`);
 }
 
