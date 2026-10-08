@@ -8,6 +8,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { currency } from './currency.js';
 
 const subdomainPattern = '^[a-z][a-z0-9-]{1,18}[a-z0-9]$';
 const domainPattern =
@@ -22,6 +23,14 @@ export const studio = pgTable(
     subdomain: text('subdomain').notNull(),
     customDomain: text('custom_domain'),
     ownerEmail: text('owner_email').notNull(),
+    /** Language of the studio for clients. Not the person's interface language. */
+    language: text('language').notNull().default('en'),
+    country: text('country').notNull().default('SK'),
+    currency: text('currency')
+      .notNull()
+      .default('EUR')
+      .references(() => currency.code),
+    timeZone: text('time_zone').notNull().default('Europe/Bratislava'),
     status: text('status').notNull().default('active'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -60,5 +69,14 @@ export const studio = pgTable(
       sql`${table.ownerEmail} = lower(${table.ownerEmail}) and position('@' in ${table.ownerEmail}) > 1`,
     ),
     check('studio_status', sql`${table.status} in ('active', 'deactivated')`),
+    check('studio_language', sql`${table.language} in ('en', 'sk', 'uk')`),
+    check(
+      'studio_country',
+      sql`${table.country} = upper(${table.country}) and char_length(${table.country}) = 2`,
+    ),
+    check(
+      'studio_time_zone',
+      sql`${table.timeZone} = btrim(${table.timeZone}) and char_length(${table.timeZone}) > 0`,
+    ),
   ],
 );

@@ -50,7 +50,14 @@ function fieldErrorCode(issue: z.core.$ZodIssue, input: unknown): string {
       return FieldErrorCode.TOO_SMALL;
     case 'too_big':
       return FieldErrorCode.TOO_BIG;
-    default:
+    default: {
+      if (
+        issue.code === 'custom' &&
+        typeof issue.params?.fieldCode === 'string'
+      ) {
+        return issue.params.fieldCode;
+      }
       return FieldErrorCode.INVALID;
+    }
   }
 }

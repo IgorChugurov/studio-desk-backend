@@ -43,6 +43,13 @@
       "when": 1791432000000,
       "tag": "0005_studio_phase3_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791446299529,
+      "tag": "0006_harsh_cardiac",
+      "breakpoints": true
     }
   ]
 }

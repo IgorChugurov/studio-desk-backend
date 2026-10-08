@@ -10,6 +10,11 @@ export const expectedGrants: Record<
   string,
   Record<ApiDbRole, TablePrivilege[]>
 > = {
+  currency: {
+    platform_api: [],
+    studio_api: ['SELECT'],
+    public_api: [],
+  },
   foundation_check: {
     platform_api: ['SELECT', 'INSERT'],
     studio_api: ['SELECT'],

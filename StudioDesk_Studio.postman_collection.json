@@ -202,6 +202,46 @@
           }
         }
       ]
+    },
+    {
+      "name": "Settings",
+      "item": [
+        {
+          "name": "Get settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/settings"
+          }
+        },
+        {
+          "name": "Get setting options",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/settings/options"
+          }
+        },
+        {
+          "name": "Update settings",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"language\": \"sk\",\n  \"country\": \"SK\",\n  \"currency\": \"EUR\",\n  \"timeZone\": \"Europe/Bratislava\"\n}"
+            },
+            "url": "{{host}}/settings"
+          }
+        }
+      ]
     }
   ]
 }
