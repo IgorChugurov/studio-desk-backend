@@ -1,17 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, eq, isNull, sql } from 'drizzle-orm';
-import { ApiError } from '../../../common/errors/api-error.js';
-import { loadEnv } from '../../../config/env.js';
-import {
-  type Database,
-  PLATFORM_DB,
-} from '../../../database/database.module.js';
-import {
-  authSession,
-  platformAdministrator,
-  signInCode,
-} from '../../../database/schema/index.js';
-import { type Mailer, MAILER } from './mailer.js';
+import { type Mailer, MAILER } from '../../../common/auth/mailer.js';
 import {
   ACCESS_TOKEN_TTL_SECONDS,
   CODE_TTL_SECONDS,
@@ -26,7 +15,18 @@ import {
   SESSION_SLIDING_MS,
   sha256,
   signAccessToken,
-} from './tokens.js';
+} from '../../../common/auth/tokens.js';
+import { ApiError } from '../../../common/errors/api-error.js';
+import { loadEnv } from '../../../config/env.js';
+import {
+  type Database,
+  PLATFORM_DB,
+} from '../../../database/database.module.js';
+import {
+  authSession,
+  platformAdministrator,
+  signInCode,
+} from '../../../database/schema/index.js';
 
 const CODE_EXPIRES_IN = CODE_TTL_SECONDS;
 const RESEND_AVAILABLE_IN = RESEND_WAIT_SECONDS;
@@ -340,7 +340,7 @@ interface SessionRow {
 }
 
 function readClaims(token: string) {
-  return readAccessToken(token, loadEnv().ACCESS_TOKEN_SECRET);
+  return readAccessToken(token, loadEnv().ACCESS_TOKEN_SECRET, 'platform');
 }
 
 function isUniqueViolation(error: unknown): boolean {

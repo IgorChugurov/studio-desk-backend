@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { loadEnv } from '../../../config/env.js';
+import { loadEnv } from '../../config/env.js';
 
 export const MAILER = Symbol('MAILER');
 

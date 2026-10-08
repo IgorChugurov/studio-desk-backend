@@ -14,8 +14,6 @@ export const SESSION_SLIDING_MS = 30 * 24 * 60 * 60 * 1000;
 export const SESSION_ABSOLUTE_MS = 90 * 24 * 60 * 60 * 1000;
 export const ROTATION_WINDOW_MS = 10 * 1000;
 export const HANDOFF_CODE_TTL_SECONDS = 60;
-export const REFRESH_COOKIE = 'sd_platform_refresh';
-export const REFRESH_COOKIE_PATH = '/api/platform/auth';
 
 export function newSignInCode(): string {
   return randomInt(0, 1_000_000).toString().padStart(6, '0');
@@ -39,10 +37,14 @@ export function sameHash(left: string, right: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+export type TokenApi = 'platform' | 'studio';
+
 export interface AccessTokenClaims {
   sub: string;
   sid: string;
-  api: 'platform';
+  api: TokenApi;
+  /** Only in studio tokens: the studio of the session. */
+  studioId?: string;
 }
 
 /** Signs a 15-minute access token. The token is not stored. */
@@ -52,9 +54,11 @@ export function signAccessToken(
   now = Date.now(),
 ): string {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
+  const { studioId, ...rest } = claims;
   const body = base64url(
     JSON.stringify({
-      ...claims,
+      ...rest,
+      ...(studioId === undefined ? {} : { studio_id: studioId }),
       iat: Math.floor(now / 1000),
       exp: Math.floor(now / 1000) + ACCESS_TOKEN_TTL_SECONDS,
     }),
@@ -65,9 +69,11 @@ export function signAccessToken(
   return `${header}.${body}.${signature}`;
 }
 
+/** Reads a token of the given API; a token of the other API is rejected. */
 export function readAccessToken(
   token: string,
   secret: string,
+  api: TokenApi,
   now = Date.now(),
 ): AccessTokenClaims | undefined {
   const [header, body, signature] = token.split('.');
@@ -83,18 +89,28 @@ export function readAccessToken(
       sub?: unknown;
       sid?: unknown;
       api?: unknown;
+      studio_id?: unknown;
       exp?: unknown;
     };
     if (
       typeof payload.sub !== 'string' ||
       typeof payload.sid !== 'string' ||
-      payload.api !== 'platform' ||
+      payload.api !== api ||
       typeof payload.exp !== 'number' ||
       payload.exp * 1000 <= now
     ) {
       return undefined;
     }
-    return { sub: payload.sub, sid: payload.sid, api: 'platform' };
+    if (api === 'studio') {
+      if (typeof payload.studio_id !== 'string') return undefined;
+      return {
+        sub: payload.sub,
+        sid: payload.sid,
+        api,
+        studioId: payload.studio_id,
+      };
+    }
+    return { sub: payload.sub, sid: payload.sid, api };
   } catch {
     return undefined;
   }

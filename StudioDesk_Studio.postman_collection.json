@@ -1,0 +1,178 @@
+{
+  "info": {
+    "name": "StudioDesk Studio",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "host", "value": "http://localhost:3000/api/studio" },
+    { "key": "email", "value": "owner@example.com" },
+    { "key": "code", "value": "" },
+    { "key": "accessToken", "value": "" },
+    { "key": "previousAccessToken", "value": "" },
+    { "key": "selectionTicket", "value": "" },
+    { "key": "studioId", "value": "" },
+    { "key": "otherStudioId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Request code",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}"
+            },
+            "url": "{{host}}/auth/code"
+          }
+        },
+        {
+          "name": "Sign in",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"code\": \"{{code}}\"\n}"
+            },
+            "url": "{{host}}/auth/sign-in"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "if (body.selectionTicket) {",
+                  "  pm.collectionVariables.set('selectionTicket', body.selectionTicket);",
+                  "  pm.collectionVariables.set('studioId', body.studios[0].id);",
+                  "  pm.collectionVariables.set('otherStudioId', body.studios.length > 1 ? body.studios[1].id : '');",
+                  "}",
+                  "if (body.studio) pm.collectionVariables.set('studioId', body.studio.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Select studio",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selectionTicket\": \"{{selectionTicket}}\",\n  \"studioId\": \"{{studioId}}\"\n}"
+            },
+            "url": "{{host}}/auth/select-studio"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Switch studio",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Requested-With", "value": "fetch" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studioId\": \"{{otherStudioId}}\"\n}"
+            },
+            "url": "{{host}}/auth/switch-studio"
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('previousAccessToken', pm.collectionVariables.get('accessToken'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', body.accessToken);",
+                  "  const previous = pm.collectionVariables.get('studioId');",
+                  "  pm.collectionVariables.set('studioId', body.studio.id);",
+                  "  pm.collectionVariables.set('otherStudioId', previous);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Switch studio with the old token (must be 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Requested-With", "value": "fetch" },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{previousAccessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studioId\": \"{{otherStudioId}}\"\n}"
+            },
+            "url": "{{host}}/auth/switch-studio"
+          }
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Requested-With", "value": "fetch" }],
+            "url": "{{host}}/auth/refresh"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign out",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "X-Requested-With", "value": "fetch" }],
+            "url": "{{host}}/auth/sign-out"
+          }
+        }
+      ]
+    }
+  ]
+}

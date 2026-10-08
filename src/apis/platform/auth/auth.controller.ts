@@ -9,13 +9,18 @@ import { Post } from '@nestjs/common';
 import { ApiResponse } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
+import {
+  clearRefreshCookie,
+  readCookie,
+  requireRequestedWith,
+  setRefreshCookie,
+} from '../../../common/auth/cookies.js';
 import { Public } from '../../../common/auth/public.decorator.js';
 import { ApiError } from '../../../common/errors/api-error.js';
 import { ZodBody } from '../../../common/validation/zod.decorators.js';
 import { emailField } from '../../../common/validation/fields.js';
 import { AuthService } from './auth.service.js';
-import { clearRefreshCookie, readCookie, setRefreshCookie } from './cookies.js';
-import { REFRESH_COOKIE } from './tokens.js';
+import { PLATFORM_COOKIE } from './platform-cookie.js';
 
 const codeRequest = z.object({ email: emailField });
 const signInRequest = z.object({
@@ -46,7 +51,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.auth.signIn(body.email, body.code);
-    setRefreshCookie(response, result.refreshToken);
+    setRefreshCookie(response, PLATFORM_COOKIE, result.refreshToken);
     return {
       accessToken: result.accessToken,
       accessTokenExpiresIn: result.accessTokenExpiresIn,
@@ -64,20 +69,20 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     requireRequestedWith(request);
-    const cookie = readCookie(request.headers.cookie, REFRESH_COOKIE);
+    const cookie = readCookie(request.headers.cookie, PLATFORM_COOKIE.name);
     if (!cookie) {
       throw ApiError.unauthorized();
     }
     try {
       const result = await this.auth.refresh(cookie);
-      setRefreshCookie(response, result.refreshToken);
+      setRefreshCookie(response, PLATFORM_COOKIE, result.refreshToken);
       return {
         accessToken: result.accessToken,
         accessTokenExpiresIn: result.accessTokenExpiresIn,
         user: result.user,
       };
     } catch (error) {
-      clearRefreshCookie(response);
+      clearRefreshCookie(response, PLATFORM_COOKIE);
       throw error;
     }
   }
@@ -91,14 +96,9 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     requireRequestedWith(request);
-    await this.auth.signOut(readCookie(request.headers.cookie, REFRESH_COOKIE));
-    clearRefreshCookie(response);
-  }
-}
-
-function requireRequestedWith(request: Request) {
-  const value = request.headers['x-requested-with'];
-  if (typeof value !== 'string' || value.length === 0) {
-    throw ApiError.forbidden();
+    await this.auth.signOut(
+      readCookie(request.headers.cookie, PLATFORM_COOKIE.name),
+    );
+    clearRefreshCookie(response, PLATFORM_COOKIE);
   }
 }

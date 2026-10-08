@@ -10,7 +10,7 @@ import {
   HANDOFF_CODE_TTL_SECONDS,
   newHandoffCode,
   sha256,
-} from '../auth/tokens.js';
+} from '../../../common/auth/tokens.js';
 
 const RESERVED_SUBDOMAINS = ['api', 'admin', 'app', 'www'] as const;
 

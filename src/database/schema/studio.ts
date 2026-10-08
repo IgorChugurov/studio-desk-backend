@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   check,
+  index,
   pgTable,
   text,
   timestamp,
@@ -31,6 +32,7 @@ export const studio = pgTable(
   },
   (table) => [
     uniqueIndex('studio_subdomain_unique').on(table.subdomain),
+    index('studio_owner_email_idx').on(table.ownerEmail),
     uniqueIndex('studio_custom_domain_unique')
       .on(table.customDomain)
       .where(sql`${table.customDomain} is not null`),

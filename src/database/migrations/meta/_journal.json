@@ -29,6 +29,13 @@
       "when": 1791229010158,
       "tag": "0003_premium_silk_fever",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791293504329,
+      "tag": "0004_complete_wild_pack",
+      "breakpoints": true
     }
   ]
 }

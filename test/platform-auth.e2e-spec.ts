@@ -1,6 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
-import { MAILER, type Mailer } from '../src/apis/platform/auth/mailer.js';
+import { MAILER, type Mailer } from '../src/common/auth/mailer.js';
 import { ensurePlatformAdministrator } from '../src/database/ensure-platform-administrator.js';
 import { createTestApp } from './support/app.js';
 import { fixtureImports } from './support/fixtures.js';
