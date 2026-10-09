@@ -88,6 +88,7 @@ describe('studio halls', () => {
     expect(created.body.name).toBe('Main hall');
     expect(created.body.address).toBe('Hlavná 1');
     expect(created.body.videoLink).toBeNull();
+    expect(created.body.description).toBeNull();
     expect(created.body.images).toEqual([]);
 
     const stored = await sql<{ count: number }>(
@@ -125,6 +126,20 @@ describe('studio halls', () => {
       videoLink: '',
     });
     expect(cleared.body.videoLink).toBeNull();
+
+    const described = await owner.patch(
+      `/api/studio/halls/${created.body.id}`,
+      {
+        description: '  A quiet room  ',
+      },
+    );
+    expect(described.body.description).toBe('A quiet room');
+    const byDescription = await owner.get('/api/studio/halls?search=quiet');
+    expect(byDescription.body.items).toEqual([]);
+    const wiped = await owner.patch(`/api/studio/halls/${created.body.id}`, {
+      description: ' ',
+    });
+    expect(wiped.body.description).toBeNull();
   });
 
   it('returns images sorted by index and does not change them when the name changes', async () => {

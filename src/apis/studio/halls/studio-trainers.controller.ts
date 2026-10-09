@@ -16,8 +16,8 @@ import {
   ZodQuery,
 } from '../../../common/validation/zod.decorators.js';
 import type { StudioRequest } from '../studio-auth.guard.js';
-import { StudioHallsService } from './studio-halls.service.js';
-import { isVideoLink } from './video-link.js';
+import { isInstagramLink, isTikTokLink } from './social-link.js';
+import { StudioTrainersService } from './studio-trainers.service.js';
 
 const listQuery = z.object({
   currentPage: z.coerce.number().int().min(1).default(1),
@@ -27,127 +27,116 @@ const listQuery = z.object({
   order: z.enum(['ASC', 'DESC']).default('DESC'),
 });
 
-const hallFields = z.object({
-  name: requiredText(),
-  address: requiredText(),
-  description: optionalText(),
-  videoLink: videoLinkField(),
-});
-
 const createBody = z
   .object({
     name: requiredText(),
-    address: requiredText(),
     description: optionalText().optional(),
-    videoLink: videoLinkField().optional(),
+    instagram: socialField(
+      isInstagramLink,
+      'Enter an Instagram link',
+    ).optional(),
+    tiktok: socialField(isTikTokLink, 'Enter a TikTok link').optional(),
   })
   .transform((value) => ({
     name: value.name.trim(),
-    address: value.address.trim(),
-    description: storedLink(value.description),
-    videoLink: storedLink(value.videoLink),
+    description: storedText(value.description),
+    instagram: storedText(value.instagram),
+    tiktok: storedText(value.tiktok),
   }));
 
-const orderBody = z.object({
-  fileIds: z.array(z.uuid()),
-});
+const patchBody = z
+  .object({
+    name: requiredText(),
+    description: optionalText(),
+    instagram: socialField(isInstagramLink, 'Enter an Instagram link'),
+    tiktok: socialField(isTikTokLink, 'Enter a TikTok link'),
+  })
+  .partial()
+  .transform((value) => ({
+    ...(value.name === undefined ? {} : { name: value.name.trim() }),
+    ...(value.description === undefined
+      ? {}
+      : { description: storedText(value.description) }),
+    ...(value.instagram === undefined
+      ? {}
+      : { instagram: storedText(value.instagram) }),
+    ...(value.tiktok === undefined ? {} : { tiktok: storedText(value.tiktok) }),
+  }));
 
-const patchBody = hallFields.partial().transform((value) => ({
-  ...(value.name === undefined ? {} : { name: value.name.trim() }),
-  ...(value.address === undefined ? {} : { address: value.address.trim() }),
-  ...(value.description === undefined
-    ? {}
-    : { description: storedLink(value.description) }),
-  ...(value.videoLink === undefined
-    ? {}
-    : { videoLink: storedLink(value.videoLink) }),
-}));
+const orderBody = z.object({ fileIds: z.array(z.uuid()) });
 
-@Controller('halls')
-export class StudioHallsController {
-  constructor(private readonly halls: StudioHallsService) {}
+@Controller('trainers')
+export class StudioTrainersController {
+  constructor(private readonly trainers: StudioTrainersService) {}
 
   @Get()
-  @ApiResponse({ status: 200, description: 'Hall list, each with images' })
-  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
   list(
     @Req() request: StudioRequest,
     @ZodQuery(listQuery) query: z.infer<typeof listQuery>,
   ) {
-    return this.halls.list(sessionOf(request), query);
+    return this.trainers.list(sessionOf(request), query);
   }
 
   @Post()
-  @ApiResponse({ status: 201, description: 'Hall' })
-  @ApiResponse({ status: 400, description: 'VALIDATION_ERROR' })
-  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
+  @ApiResponse({ status: 201 })
   create(
     @Req() request: StudioRequest,
     @ZodBody(createBody) body: z.infer<typeof createBody>,
   ) {
-    return this.halls.create(sessionOf(request), body);
+    return this.trainers.create(sessionOf(request), body);
   }
 
   @Get(':id')
-  @ApiResponse({ status: 200, description: 'Hall' })
-  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
-  @ApiResponse({ status: 404, description: 'NOT_FOUND' })
   one(@Req() request: StudioRequest, @Param('id') id: string) {
-    return this.halls.get(sessionOf(request), parseId(id));
+    return this.trainers.get(sessionOf(request), parseId(id, 'Trainer'));
   }
 
   @Patch(':id')
-  @ApiResponse({ status: 200, description: 'Hall' })
-  @ApiResponse({ status: 400, description: 'VALIDATION_ERROR' })
-  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
-  @ApiResponse({ status: 404, description: 'NOT_FOUND' })
   update(
     @Req() request: StudioRequest,
     @Param('id') id: string,
     @ZodBody(patchBody) body: z.infer<typeof patchBody>,
   ) {
-    return this.halls.update(sessionOf(request), parseId(id), body);
+    return this.trainers.update(
+      sessionOf(request),
+      parseId(id, 'Trainer'),
+      body,
+    );
   }
 
   @Post(':id/files')
-  @ApiResponse({ status: 201, description: 'Hall with images' })
-  @ApiResponse({ status: 400, description: 'VALIDATION_ERROR' })
-  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
-  @ApiResponse({ status: 404, description: 'NOT_FOUND' })
   upload(@Req() request: StudioRequest, @Param('id') id: string) {
-    return this.halls.upload(sessionOf(request), parseId(id), request);
+    return this.trainers.upload(
+      sessionOf(request),
+      parseId(id, 'Trainer'),
+      request,
+    );
   }
 
   @Delete(':id/files/:fileId')
-  @ApiResponse({ status: 200, description: 'Hall with images reindexed' })
-  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
-  @ApiResponse({ status: 404, description: 'NOT_FOUND' })
   removeFile(
     @Req() request: StudioRequest,
     @Param('id') id: string,
     @Param('fileId') fileId: string,
   ) {
-    return this.halls.removeFile(
+    return this.trainers.removeFile(
       sessionOf(request),
-      parseId(id),
-      parseId(fileId),
+      parseId(id, 'Trainer'),
+      parseId(fileId, 'File'),
     );
   }
 
   @Put(':id/files/order')
-  @ApiResponse({
-    status: 200,
-    description: 'Hall with images in the new order',
-  })
-  @ApiResponse({ status: 400, description: 'VALIDATION_ERROR' })
-  @ApiResponse({ status: 403, description: 'FORBIDDEN' })
-  @ApiResponse({ status: 404, description: 'NOT_FOUND' })
   reorder(
     @Req() request: StudioRequest,
     @Param('id') id: string,
     @ZodBody(orderBody) body: z.infer<typeof orderBody>,
   ) {
-    return this.halls.reorder(sessionOf(request), parseId(id), body.fileIds);
+    return this.trainers.reorder(
+      sessionOf(request),
+      parseId(id, 'Trainer'),
+      body.fileIds,
+    );
   }
 }
 
@@ -186,13 +175,13 @@ function optionalText() {
   });
 }
 
-function videoLinkField() {
+function socialField(valid: (value: string) => boolean, message: string) {
   return z.any().superRefine((value, ctx) => {
     if (value === undefined || isBlank(value)) return;
-    if (typeof value !== 'string' || !isVideoLink(value.trim())) {
+    if (typeof value !== 'string' || !valid(value.trim())) {
       ctx.addIssue({
         code: 'custom',
-        message: 'Enter a YouTube or Vimeo link',
+        message,
         params: { fieldCode: 'INVALID_FORMAT' },
       });
     }
@@ -203,7 +192,7 @@ function isBlank(value: unknown) {
   return value === null || (typeof value === 'string' && value.trim() === '');
 }
 
-function storedLink(value: unknown): string | null {
+function storedText(value: unknown): string | null {
   if (typeof value !== 'string' || value.trim() === '') return null;
   return value.trim();
 }
@@ -214,9 +203,9 @@ function sessionOf(request: StudioRequest) {
   return session;
 }
 
-function parseId(id: string) {
+function parseId(id: string, name: string) {
   if (!z.uuid().safeParse(id).success) {
-    throw ApiError.notFound('Hall not found');
+    throw ApiError.notFound(`${name} not found`);
   }
   return id;
 }

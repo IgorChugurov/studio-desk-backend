@@ -21,6 +21,7 @@ export const hall = pgTable(
       .references(() => studio.id),
     name: text('name').notNull(),
     address: text('address').notNull(),
+    description: text('description'),
     videoLink: text('video_link'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -38,6 +39,12 @@ export const hall = pgTable(
     check(
       'hall_address_not_blank',
       sql`${table.address} = btrim(${table.address}) and char_length(${table.address}) > 0`,
+    ),
+    check(
+      'hall_description_not_blank',
+      sql`${table.description} is null or (
+        ${table.description} = btrim(${table.description}) and char_length(${table.description}) > 0
+      )`,
     ),
     check(
       'hall_video_link_not_blank',

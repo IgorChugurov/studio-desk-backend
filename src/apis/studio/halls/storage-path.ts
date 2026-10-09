@@ -19,13 +19,14 @@ const EXTENSIONS: Record<string, string> = {
 
 /** Public address stored on the file row and returned in `images.url`. */
 export function fileAddress(
-  hallId: string,
+  folder: 'halls' | 'trainers' | 'class-types',
+  recordId: string,
   fileId: string,
   contentType: string,
 ): string {
   const extension = EXTENSIONS[contentType];
   if (!extension) throw new Error(`No extension for ${contentType}`);
-  return `${FILE_PREFIX}halls/${hallId}/${fileId}${extension}`;
+  return `${FILE_PREFIX}${folder}/${recordId}/${fileId}${extension}`;
 }
 
 /** Disk path for a stored public address. */

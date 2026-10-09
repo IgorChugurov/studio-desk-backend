@@ -29,6 +29,7 @@ export interface HallView {
   id: string;
   name: string;
   address: string;
+  description: string | null;
   videoLink: string | null;
   images: HallFileView[];
   createdAt: Date;
@@ -38,6 +39,7 @@ export interface HallView {
 export interface HallWrite {
   name?: string;
   address?: string;
+  description?: string | null;
   videoLink?: string | null;
 }
 
@@ -104,7 +106,12 @@ export class StudioHallsService {
 
   async create(
     session: StudioSessionInfo,
-    input: { name: string; address: string; videoLink: string | null },
+    input: {
+      name: string;
+      address: string;
+      description: string | null;
+      videoLink: string | null;
+    },
   ): Promise<HallView> {
     await this.access.assertSection(session, 'catalogs');
     const inserted = await this.db
@@ -113,6 +120,7 @@ export class StudioHallsService {
         studioId: session.studioId,
         name: input.name,
         address: input.address,
+        description: input.description,
         videoLink: input.videoLink,
       })
       .returning();
@@ -130,6 +138,9 @@ export class StudioHallsService {
     const changes = {
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.address === undefined ? {} : { address: input.address }),
+      ...(input.description === undefined
+        ? {}
+        : { description: input.description }),
       ...(input.videoLink === undefined ? {} : { videoLink: input.videoLink }),
     };
     if (Object.keys(changes).length > 0) {
@@ -182,7 +193,7 @@ export class StudioHallsService {
     try {
       for (const part of accepted) {
         const id = randomUUID();
-        const address = fileAddress(hallId, id, part.contentType);
+        const address = fileAddress('halls', hallId, id, part.contentType);
         await moveIntoStorage(part.path, diskPathOfAddress(address));
         placed.push({ id, address, contentType: part.contentType });
       }
@@ -358,6 +369,7 @@ function toHall(
     id: row.id,
     name: row.name,
     address: row.address,
+    description: row.description,
     videoLink: row.videoLink,
     images,
     createdAt: row.createdAt,

@@ -1,3 +1,4 @@
+export * from './catalog.js';
 export * from './currency.js';
 export * from './hall.js';
 export * from './foundation-check.js';

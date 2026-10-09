@@ -10,6 +10,16 @@ export const expectedGrants: Record<
   string,
   Record<ApiDbRole, TablePrivilege[]>
 > = {
+  class_type: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE'],
+    public_api: [],
+  },
+  class_type_file: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+    public_api: [],
+  },
   currency: {
     platform_api: [],
     studio_api: ['SELECT'],
@@ -82,6 +92,16 @@ export const expectedGrants: Record<
   },
   studio_staff: {
     platform_api: ['SELECT'],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+    public_api: [],
+  },
+  trainer: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE'],
+    public_api: [],
+  },
+  trainer_file: {
+    platform_api: [],
     studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
     public_api: [],
   },

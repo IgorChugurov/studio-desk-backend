@@ -71,6 +71,20 @@
       "when": 1791492891299,
       "tag": "0009_halls",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791566039990,
+      "tag": "0010_hall_description",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791568520765,
+      "tag": "0011_catalog_trainers_class_types",
+      "breakpoints": true
     }
   ]
 }

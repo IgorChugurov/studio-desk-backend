@@ -37,5 +37,9 @@ describe('fileRejection', () => {
     expect(fileRejection(VIDEO_MAX_BYTES, mp4, true)).toBe('TOO_BIG');
     expect(fileRejection(IMAGE_MAX_BYTES, jpeg, false)).toBeNull();
     expect(fileRejection(VIDEO_MAX_BYTES, mp4, false)).toBeNull();
+    const quicktime = Buffer.alloc(16);
+    quicktime.write('ftyp', 4, 'ascii');
+    quicktime.write('qt  ', 8, 'ascii');
+    expect(fileRejection(quicktime.length, quicktime, false)).toBeNull();
   });
 });

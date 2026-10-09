@@ -2,16 +2,8 @@ export const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 export const VIDEO_MAX_BYTES = 100 * 1024 * 1024;
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const MP4_BRANDS = new Set([
-  'isom',
-  'iso2',
-  'mp41',
-  'mp42',
-  'avc1',
-  'M4V ',
-  'dash',
-  'MSNV',
-]);
+const FTYP = Buffer.from('ftyp');
+const AUDIO_MP4_BRANDS = new Set(['M4A ', 'M4B ', 'M4P ']);
 
 export type FileRejection = 'TOO_SMALL' | 'TOO_BIG' | 'INVALID_VALUE';
 
@@ -59,14 +51,11 @@ export function fileRejection(
 }
 
 function isMp4(bytes: Buffer): boolean {
-  if (bytes.length < 12 || bytes.subarray(4, 8).toString('ascii') !== 'ftyp') {
-    return false;
-  }
-  const brands = [bytes.subarray(8, 12).toString('ascii')];
-  for (let offset = 16; offset + 4 <= Math.min(bytes.length, 64); offset += 4) {
-    brands.push(bytes.subarray(offset, offset + 4).toString('ascii'));
-  }
-  return brands.some((brand) => MP4_BRANDS.has(brand));
+  const at = bytes.subarray(0, Math.min(bytes.length, 64)).indexOf(FTYP);
+  if (at < 0 || at + 8 > bytes.length) return false;
+  const major = bytes.subarray(at + 4, at + 8).toString('ascii');
+  if (AUDIO_MP4_BRANDS.has(major)) return false;
+  return [...major].every((char) => char >= ' ' && char <= '~');
 }
 
 function isWebm(bytes: Buffer): boolean {

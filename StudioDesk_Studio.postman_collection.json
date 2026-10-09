@@ -437,6 +437,66 @@
           }
         }
       ]
+    },
+    {
+      "name": "Trainers",
+      "item": [
+        {
+          "name": "List trainers",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/trainers?search="
+          }
+        },
+        {
+          "name": "Create trainer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Anna\",\n  \"description\": \"\",\n  \"instagram\": \"https://instagram.com/anna\",\n  \"tiktok\": \"\"\n}"
+            },
+            "url": "{{host}}/trainers"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Class types",
+      "item": [
+        {
+          "name": "List class types",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/class-types?search="
+          }
+        },
+        {
+          "name": "Create class type",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Yoga\",\n  \"description\": \"\"\n}"
+            },
+            "url": "{{host}}/class-types"
+          }
+        }
+      ]
     }
   ]
 }
