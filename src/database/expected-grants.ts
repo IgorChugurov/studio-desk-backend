@@ -20,6 +20,16 @@ export const expectedGrants: Record<
     studio_api: ['SELECT'],
     public_api: [],
   },
+  hall: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE'],
+    public_api: [],
+  },
+  hall_file: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+    public_api: [],
+  },
   interface_language: {
     platform_api: [],
     studio_api: ['SELECT', 'INSERT', 'UPDATE'],

@@ -62,6 +62,7 @@ RESEND_API_KEY=$RESEND_API_KEY
 RESEND_FROM_EMAIL=StudioDesk <noreply@axondigital.xyz>
 PLATFORM_ADMIN_EMAIL=$PLATFORM_ADMIN_EMAIL
 ACCESS_TOKEN_SECRET=$(openssl rand -hex 32)
+FILE_STORAGE_DIR=/files
 EOF'
 ls -l /opt/studio-desk/.env
 ```
@@ -80,6 +81,18 @@ grep -q "^RESEND_API_KEY=" "$file" || printf "RESEND_API_KEY=%s\n" "$RESEND_API_
 grep -q "^RESEND_FROM_EMAIL=" "$file" || printf "%s\n" "RESEND_FROM_EMAIL=StudioDesk <noreply@axondigital.xyz>" >> "$file"
 grep -q "^PLATFORM_ADMIN_EMAIL=" "$file" || printf "PLATFORM_ADMIN_EMAIL=%s\n" "$PLATFORM_ADMIN_EMAIL" >> "$file"
 grep -q "^ACCESS_TOKEN_SECRET=" "$file" || printf "ACCESS_TOKEN_SECRET=%s\n" "$(openssl rand -hex 32)" >> "$file"
+'
+```
+
+### 3c. File storage on a server that already has `.env`
+
+The container reads `/files`. That path is the host directory `/opt/studio-desk/files`. The process in the image runs as uid 1000.
+
+```bash
+install -d -o 1000 -g 1000 -m 755 /opt/studio-desk/files
+runuser -u studio-desk -- bash -c '
+file=/opt/studio-desk/.env
+grep -q "^FILE_STORAGE_DIR=" "$file" || printf "%s\n" "FILE_STORAGE_DIR=/files" >> "$file"
 '
 ```
 

@@ -15,6 +15,8 @@ export const envSchema = z.object({
   RESEND_FROM_EMAIL: z.string().min(1),
   PLATFORM_ADMIN_EMAIL: z.email(),
   ACCESS_TOKEN_SECRET: z.string().min(32),
+  // Directory for uploaded file bytes. Locally `storage`. On the server `/files`.
+  FILE_STORAGE_DIR: z.string().min(1),
   // Extra browser origins allowed by CORS, comma-separated, for example
   // "http://admin.localhost:3001" when a frontend runs on a developer machine.
   CORS_EXTRA_ORIGINS: z

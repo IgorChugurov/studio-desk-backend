@@ -18,6 +18,7 @@ x-backend-env: &backend-env
   PLATFORM_ADMIN_EMAIL: ${PLATFORM_ADMIN_EMAIL:?}
   ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:?}
   CORS_EXTRA_ORIGINS: ${CORS_EXTRA_ORIGINS:-}
+  FILE_STORAGE_DIR: ${FILE_STORAGE_DIR:?}
 
 services:
   postgres:
@@ -46,6 +47,8 @@ services:
     environment: *backend-env
     ports:
       - '127.0.0.1:3100:3000'
+    volumes:
+      - /opt/studio-desk/files:/files
     depends_on:
       postgres:
         condition: service_healthy

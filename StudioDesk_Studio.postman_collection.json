@@ -12,7 +12,11 @@
     { "key": "selectionTicket", "value": "" },
     { "key": "studioId", "value": "" },
     { "key": "otherStudioId", "value": "" },
-    { "key": "handoffCode", "value": "" }
+    { "key": "handoffCode", "value": "" },
+    { "key": "hallId", "value": "" },
+    { "key": "fileId", "value": "" },
+    { "key": "fileUrl", "value": "" },
+    { "key": "origin", "value": "http://localhost:3000" }
   ],
   "item": [
     {
@@ -299,6 +303,137 @@
               "raw": "{\n  \"language\": \"sk\",\n  \"country\": \"SK\",\n  \"currency\": \"EUR\",\n  \"timeZone\": \"Europe/Bratislava\"\n}"
             },
             "url": "{{host}}/settings"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Halls",
+      "item": [
+        {
+          "name": "List halls",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/halls?search="
+          }
+        },
+        {
+          "name": "Create hall",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main hall\",\n  \"address\": \"Hlavná 1, Bratislava\",\n  \"videoLink\": \"\"\n}"
+            },
+            "url": "{{host}}/halls"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.id) pm.collectionVariables.set('hallId', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get hall",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/halls/{{hallId}}"
+          }
+        },
+        {
+          "name": "Update hall",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main hall\",\n  \"address\": \"Hlavná 1, Bratislava\",\n  \"videoLink\": \"https://youtu.be/abc\"\n}"
+            },
+            "url": "{{host}}/halls/{{hallId}}"
+          }
+        },
+        {
+          "name": "Upload files",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [{ "key": "files", "type": "file", "src": [] }]
+            },
+            "url": "{{host}}/halls/{{hallId}}/files"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.images && body.images[0]) {",
+                  "  pm.collectionVariables.set('fileId', body.images[0].id);",
+                  "  pm.collectionVariables.set('fileUrl', body.images[0].url);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reorder files",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileIds\": [\"{{fileId}}\"]\n}"
+            },
+            "url": "{{host}}/halls/{{hallId}}/files/order"
+          }
+        },
+        {
+          "name": "Delete file",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{host}}/halls/{{hallId}}/files/{{fileId}}"
+          }
+        },
+        {
+          "name": "Read file",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{origin}}{{fileUrl}}"
           }
         }
       ]

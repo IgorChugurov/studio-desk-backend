@@ -14,6 +14,7 @@ import { IS_PUBLIC_KEY } from './public.decorator.js';
 /**
  * Global guard: open routes pass; every other route goes to the guard of the
  * API it belongs to (by path). A closed route outside the three APIs is denied.
+ * `/files` is static and is served before this guard.
  */
 @Injectable()
 export class ApiAuthGuard implements CanActivate {
