@@ -294,6 +294,12 @@ describe('studio halls', () => {
     const bytes = await http().get(jpegUrl).buffer(true);
     expect(bytes.status).toBe(200);
     expect(bytes.headers['content-type']).toBe('image/jpeg');
+    const preflight = await http()
+      .options(jpegUrl)
+      .set('Origin', 'https://app.studio-desk.axondigital.xyz')
+      .set('Access-Control-Request-Method', 'GET')
+      .set('Access-Control-Request-Headers', 'authorization');
+    expect(preflight.status).toBe(204);
     expect(Buffer.from(bytes.body).subarray(0, 3)).toEqual(
       Buffer.from([0xff, 0xd8, 0xff]),
     );
