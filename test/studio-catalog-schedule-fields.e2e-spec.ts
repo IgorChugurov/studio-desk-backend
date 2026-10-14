@@ -98,7 +98,7 @@ describe('catalog schedule fields', () => {
     ]);
   });
 
-  it('keeps the hall type immutable and fixes a virtual hall address', async () => {
+  it('lets the hall type change and fixes a virtual hall address', async () => {
     const yoga = await createStudio('Yoga Type');
     const owner = authed(await sessionFor(yoga, OWNER));
 
@@ -111,18 +111,34 @@ describe('catalog schedule fields', () => {
     expect(virtual.body.type).toBe('virtual');
     expect(virtual.body.address).toBe('Virtual hall');
 
-    const changeType = await owner.patch(
+    const missingAddress = await owner.patch(
       `/api/studio/halls/${virtual.body.id}`,
       { type: 'ordinary' },
     );
-    expect(changeType.status).toBe(400);
-    expect(changeType.body.errors).toEqual([
-      expect.objectContaining({ field: 'type', code: 'INVALID_VALUE' }),
+    expect(missingAddress.status).toBe(400);
+    expect(missingAddress.body.errors).toEqual([
+      expect.objectContaining({ field: 'address', code: 'REQUIRED' }),
     ]);
     const stillVirtual = await owner.get(
       `/api/studio/halls/${virtual.body.id}`,
     );
     expect(stillVirtual.body.type).toBe('virtual');
+
+    const toOrdinary = await owner.patch(
+      `/api/studio/halls/${virtual.body.id}`,
+      { type: 'ordinary', address: 'Hlavná 4' },
+    );
+    expect(toOrdinary.status).toBe(200);
+    expect(toOrdinary.body.type).toBe('ordinary');
+    expect(toOrdinary.body.address).toBe('Hlavná 4');
+
+    const toVirtual = await owner.patch(
+      `/api/studio/halls/${virtual.body.id}`,
+      { type: 'virtual', address: 'keep this street' },
+    );
+    expect(toVirtual.status).toBe(200);
+    expect(toVirtual.body.type).toBe('virtual');
+    expect(toVirtual.body.address).toBe('Virtual hall');
 
     const changeAddress = await owner.patch(
       `/api/studio/halls/${virtual.body.id}`,

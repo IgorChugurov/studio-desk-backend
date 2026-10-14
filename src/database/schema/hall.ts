@@ -19,7 +19,7 @@ export const hall = pgTable(
     studioId: uuid('studio_id')
       .notNull()
       .references(() => studio.id),
-    /** `ordinary` or `virtual`. Chosen on create; not changed afterwards. */
+    /** `ordinary` or `virtual`. Chosen on create and changeable later. */
     type: text('type').notNull().default('ordinary'),
     name: text('name').notNull(),
     address: text('address').notNull(),

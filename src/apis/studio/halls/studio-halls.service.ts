@@ -49,7 +49,6 @@ export interface HallCreate {
 }
 
 export interface HallWrite {
-  /** Only used to refuse an attempt to change the immutable type. */
   type?: 'ordinary' | 'virtual';
   name?: string;
   address?: string;
@@ -150,16 +149,9 @@ export class StudioHallsService {
   ): Promise<HallView> {
     await this.access.assertSection(session, 'catalogs');
     const current = await this.read(session.studioId, id);
-    if (input.type !== undefined && input.type !== current.type) {
-      throw ApiError.validation([
-        {
-          code: FieldErrorCode.INVALID_VALUE,
-          field: 'type',
-          message: 'The hall type cannot be changed',
-        },
-      ]);
-    }
+    const nextType = input.type ?? current.type;
     if (
+      nextType === 'virtual' &&
       current.type === 'virtual' &&
       input.address !== undefined &&
       input.address !== 'Virtual hall'
@@ -172,9 +164,29 @@ export class StudioHallsService {
         },
       ]);
     }
+    if (nextType === 'ordinary' && current.type === 'virtual') {
+      if (input.address === undefined) {
+        throw ApiError.validation([
+          {
+            code: FieldErrorCode.REQUIRED,
+            field: 'address',
+            message: 'This field is required',
+          },
+        ]);
+      }
+    }
+    const addressChange =
+      nextType === 'virtual'
+        ? current.type === 'ordinary' || input.address !== undefined
+          ? { address: 'Virtual hall' }
+          : {}
+        : input.address === undefined
+          ? {}
+          : { address: input.address };
     const changes = {
+      ...(input.type === undefined ? {} : { type: input.type }),
       ...(input.name === undefined ? {} : { name: input.name }),
-      ...(input.address === undefined ? {} : { address: input.address }),
+      ...addressChange,
       ...(input.timeZone === undefined ? {} : { timeZone: input.timeZone }),
       ...(input.description === undefined
         ? {}
