@@ -36,12 +36,14 @@ const createBody = z
       'Enter an Instagram link',
     ).optional(),
     tiktok: socialField(isTikTokLink, 'Enter a TikTok link').optional(),
+    classTypeIds: z.array(z.uuid()).optional(),
   })
   .transform((value) => ({
     name: value.name.trim(),
     description: storedText(value.description),
     instagram: storedText(value.instagram),
     tiktok: storedText(value.tiktok),
+    classTypeIds: value.classTypeIds ?? [],
   }));
 
 const patchBody = z
@@ -50,6 +52,7 @@ const patchBody = z
     description: optionalText(),
     instagram: socialField(isInstagramLink, 'Enter an Instagram link'),
     tiktok: socialField(isTikTokLink, 'Enter a TikTok link'),
+    classTypeIds: z.array(z.uuid()),
   })
   .partial()
   .transform((value) => ({
@@ -61,6 +64,9 @@ const patchBody = z
       ? {}
       : { instagram: storedText(value.instagram) }),
     ...(value.tiktok === undefined ? {} : { tiktok: storedText(value.tiktok) }),
+    ...(value.classTypeIds === undefined
+      ? {}
+      : { classTypeIds: value.classTypeIds }),
   }));
 
 const orderBody = z.object({ fileIds: z.array(z.uuid()) });

@@ -7,6 +7,7 @@ import type { Request } from 'express';
 import { ApiError, FieldErrorCode } from '../../../common/errors/api-error.js';
 import { type Database, STUDIO_DB } from '../../../database/database.module.js';
 import { hall, hallFile } from '../../../database/schema/hall.js';
+import { studio } from '../../../database/schema/studio.js';
 import { StudioAccessService } from '../access/studio-access.service.js';
 import type { StudioSessionInfo } from '../auth/studio-auth.service.js';
 import { detectContentType, fileRejection } from './file-type.js';
@@ -27,8 +28,10 @@ export interface HallFileView {
 
 export interface HallView {
   id: string;
+  type: 'ordinary' | 'virtual';
   name: string;
   address: string;
+  timeZone: string;
   description: string | null;
   videoLink: string | null;
   images: HallFileView[];
@@ -36,9 +39,21 @@ export interface HallView {
   updatedAt: Date;
 }
 
+export interface HallCreate {
+  type: 'ordinary' | 'virtual';
+  name: string;
+  address: string;
+  timeZone?: string;
+  description: string | null;
+  videoLink: string | null;
+}
+
 export interface HallWrite {
+  /** Only used to refuse an attempt to change the immutable type. */
+  type?: 'ordinary' | 'virtual';
   name?: string;
   address?: string;
+  timeZone?: string;
   description?: string | null;
   videoLink?: string | null;
 }
@@ -106,20 +121,19 @@ export class StudioHallsService {
 
   async create(
     session: StudioSessionInfo,
-    input: {
-      name: string;
-      address: string;
-      description: string | null;
-      videoLink: string | null;
-    },
+    input: HallCreate,
   ): Promise<HallView> {
     await this.access.assertSection(session, 'catalogs');
+    const timeZone =
+      input.timeZone ?? (await this.studioTimeZone(session.studioId));
     const inserted = await this.db
       .insert(hall)
       .values({
         studioId: session.studioId,
+        type: input.type,
         name: input.name,
         address: input.address,
+        timeZone,
         description: input.description,
         videoLink: input.videoLink,
       })
@@ -135,9 +149,33 @@ export class StudioHallsService {
     input: HallWrite,
   ): Promise<HallView> {
     await this.access.assertSection(session, 'catalogs');
+    const current = await this.read(session.studioId, id);
+    if (input.type !== undefined && input.type !== current.type) {
+      throw ApiError.validation([
+        {
+          code: FieldErrorCode.INVALID_VALUE,
+          field: 'type',
+          message: 'The hall type cannot be changed',
+        },
+      ]);
+    }
+    if (
+      current.type === 'virtual' &&
+      input.address !== undefined &&
+      input.address !== 'Virtual hall'
+    ) {
+      throw ApiError.validation([
+        {
+          code: FieldErrorCode.INVALID_VALUE,
+          field: 'address',
+          message: 'A virtual hall keeps the address Virtual hall',
+        },
+      ]);
+    }
     const changes = {
       ...(input.name === undefined ? {} : { name: input.name }),
       ...(input.address === undefined ? {} : { address: input.address }),
+      ...(input.timeZone === undefined ? {} : { timeZone: input.timeZone }),
       ...(input.description === undefined
         ? {}
         : { description: input.description }),
@@ -152,6 +190,16 @@ export class StudioHallsService {
       if (!updated[0]) throw ApiError.notFound('Hall not found');
     }
     return this.read(session.studioId, id);
+  }
+
+  private async studioTimeZone(studioId: string): Promise<string> {
+    const rows = await this.db
+      .select({ timeZone: studio.timeZone })
+      .from(studio)
+      .where(eq(studio.id, studioId));
+    const row = rows[0];
+    if (!row) throw ApiError.notFound('Studio not found');
+    return row.timeZone;
   }
 
   async upload(
@@ -367,8 +415,10 @@ function toHall(
 ): HallView {
   return {
     id: row.id,
+    type: row.type as 'ordinary' | 'virtual',
     name: row.name,
     address: row.address,
+    timeZone: row.timeZone,
     description: row.description,
     videoLink: row.videoLink,
     images,

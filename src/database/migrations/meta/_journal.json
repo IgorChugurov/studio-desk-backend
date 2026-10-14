@@ -85,6 +85,13 @@
       "when": 1791568520765,
       "tag": "0011_catalog_trainers_class_types",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791991588379,
+      "tag": "0012_catalog_schedule_fields",
+      "breakpoints": true
     }
   ]
 }

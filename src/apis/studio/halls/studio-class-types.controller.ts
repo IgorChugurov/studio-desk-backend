@@ -26,20 +26,28 @@ const listQuery = z.object({
   order: z.enum(['ASC', 'DESC']).default('DESC'),
 });
 
+const DURATION_MESSAGE = 'Enter a duration from 5 to 240 minutes in steps of 5';
+
 const createBody = z
   .object({
     name: requiredText(),
     description: optionalText().optional(),
+    defaultDuration: durationField(),
+    trainerIds: z.array(z.uuid()).optional(),
   })
   .transform((value) => ({
     name: value.name.trim(),
     description: storedText(value.description),
+    defaultDuration: value.defaultDuration as number,
+    trainerIds: value.trainerIds ?? [],
   }));
 
 const patchBody = z
   .object({
     name: requiredText(),
     description: optionalText(),
+    defaultDuration: durationField(),
+    trainerIds: z.array(z.uuid()),
   })
   .partial()
   .transform((value) => ({
@@ -47,6 +55,10 @@ const patchBody = z
     ...(value.description === undefined
       ? {}
       : { description: storedText(value.description) }),
+    ...(value.defaultDuration === undefined
+      ? {}
+      : { defaultDuration: value.defaultDuration as number }),
+    ...(value.trainerIds === undefined ? {} : { trainerIds: value.trainerIds }),
   }));
 
 const orderBody = z.object({ fileIds: z.array(z.uuid()) });
@@ -148,6 +160,32 @@ function optionalText() {
         expected: 'string',
         input: value,
         message: 'Expected a string',
+      });
+    }
+  });
+}
+
+function durationField() {
+  return z.any().superRefine((value, ctx) => {
+    if (value === undefined || value === null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: DURATION_MESSAGE,
+        params: { fieldCode: 'REQUIRED' },
+      });
+      return;
+    }
+    if (
+      typeof value !== 'number' ||
+      !Number.isInteger(value) ||
+      value < 5 ||
+      value > 240 ||
+      value % 5 !== 0
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: DURATION_MESSAGE,
+        params: { fieldCode: 'INVALID_VALUE' },
       });
     }
   });

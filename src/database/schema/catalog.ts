@@ -4,6 +4,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -95,6 +96,8 @@ export const classType = pgTable(
       .references(() => studio.id),
     name: text('name').notNull(),
     description: text('description'),
+    /** Minutes, 5 to 240 in steps of 5. Prefills the class form. */
+    defaultDuration: integer('default_duration').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -112,6 +115,38 @@ export const classType = pgTable(
       'class_type_description_not_blank',
       sql`${table.description} is null or (${table.description} = btrim(${table.description}) and char_length(${table.description}) > 0)`,
     ),
+    check(
+      'class_type_default_duration',
+      sql`${table.defaultDuration} between 5 and 240 and ${table.defaultDuration} % 5 = 0`,
+    ),
+  ],
+);
+
+/**
+ * The many-to-many link between a trainer and the class types they teach.
+ * Edited from either card; both writes change these rows. It does not
+ * constrain classes. There is no hall–class type link.
+ */
+export const trainerClassType = pgTable(
+  'trainer_class_type',
+  {
+    studioId: uuid('studio_id')
+      .notNull()
+      .references(() => studio.id),
+    trainerId: uuid('trainer_id')
+      .notNull()
+      .references(() => trainer.id),
+    classTypeId: uuid('class_type_id')
+      .notNull()
+      .references(() => classType.id),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.trainerId, table.classTypeId] }),
+    index('trainer_class_type_studio_id_idx').on(table.studioId),
+    index('trainer_class_type_class_type_id_idx').on(table.classTypeId),
   ],
 );
 

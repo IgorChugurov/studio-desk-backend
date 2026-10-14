@@ -19,8 +19,12 @@ export const hall = pgTable(
     studioId: uuid('studio_id')
       .notNull()
       .references(() => studio.id),
+    /** `ordinary` or `virtual`. Chosen on create; not changed afterwards. */
+    type: text('type').notNull().default('ordinary'),
     name: text('name').notNull(),
     address: text('address').notNull(),
+    /** IANA time zone, from the same set as studio settings. */
+    timeZone: text('time_zone').notNull(),
     description: text('description'),
     videoLink: text('video_link'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -32,6 +36,7 @@ export const hall = pgTable(
   },
   (table) => [
     index('hall_studio_id_idx').on(table.studioId),
+    check('hall_type', sql`${table.type} in ('ordinary', 'virtual')`),
     check(
       'hall_name_not_blank',
       sql`${table.name} = btrim(${table.name}) and char_length(${table.name}) > 0`,
@@ -39,6 +44,14 @@ export const hall = pgTable(
     check(
       'hall_address_not_blank',
       sql`${table.address} = btrim(${table.address}) and char_length(${table.address}) > 0`,
+    ),
+    check(
+      'hall_virtual_address',
+      sql`${table.type} = 'ordinary' or ${table.address} = 'Virtual hall'`,
+    ),
+    check(
+      'hall_time_zone_not_blank',
+      sql`${table.timeZone} = btrim(${table.timeZone}) and char_length(${table.timeZone}) > 0`,
     ),
     check(
       'hall_description_not_blank',

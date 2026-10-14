@@ -6,7 +6,12 @@ import { and, asc, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import type { Request } from 'express';
 import { ApiError, FieldErrorCode } from '../../../common/errors/api-error.js';
 import { type Database, STUDIO_DB } from '../../../database/database.module.js';
-import { trainer, trainerFile } from '../../../database/schema/catalog.js';
+import {
+  classType,
+  trainer,
+  trainerClassType,
+  trainerFile,
+} from '../../../database/schema/catalog.js';
 import { StudioAccessService } from '../access/studio-access.service.js';
 import type { StudioSessionInfo } from '../auth/studio-auth.service.js';
 import { detectContentType, fileRejection } from './file-type.js';
@@ -31,6 +36,7 @@ export interface TrainerView {
   description: string | null;
   instagram: string | null;
   tiktok: string | null;
+  classTypeIds: string[];
   images: TrainerFileView[];
   createdAt: Date;
   updatedAt: Date;
@@ -41,6 +47,7 @@ export interface TrainerWrite {
   description?: string | null;
   instagram?: string | null;
   tiktok?: string | null;
+  classTypeIds?: string[];
 }
 
 @Injectable()
@@ -83,11 +90,15 @@ export class StudioTrainersService {
       .orderBy(direction, asc(trainer.id))
       .limit(query.perPage)
       .offset(offset);
-    const images = await this.imagesOf(rows.map((row) => row.id));
+    const ids = rows.map((row) => row.id);
+    const images = await this.imagesOf(ids);
+    const classTypes = await this.classTypesOf(ids);
     const totalPages =
       totalItems === 0 ? 0 : Math.ceil(totalItems / query.perPage);
     return {
-      items: rows.map((row) => toTrainer(row, images.get(row.id) ?? [])),
+      items: rows.map((row) =>
+        toTrainer(row, images.get(row.id) ?? [], classTypes.get(row.id) ?? []),
+      ),
       meta: {
         currentPage: query.currentPage,
         perPage: query.perPage,
@@ -111,22 +122,29 @@ export class StudioTrainersService {
       description: string | null;
       instagram: string | null;
       tiktok: string | null;
+      classTypeIds: string[];
     },
   ): Promise<TrainerView> {
     await this.access.assertSection(session, 'catalogs');
-    const inserted = await this.db
-      .insert(trainer)
-      .values({
-        studioId: session.studioId,
-        name: input.name,
-        description: input.description,
-        instagram: input.instagram,
-        tiktok: input.tiktok,
-      })
-      .returning();
-    const row = inserted[0];
-    if (!row) throw new Error('trainer was not created');
-    return toTrainer(row, []);
+    const classTypeIds = [...new Set(input.classTypeIds)];
+    const id = await this.db.transaction(async (tx) => {
+      await this.assertClassTypes(tx, session.studioId, classTypeIds);
+      const inserted = await tx
+        .insert(trainer)
+        .values({
+          studioId: session.studioId,
+          name: input.name,
+          description: input.description,
+          instagram: input.instagram,
+          tiktok: input.tiktok,
+        })
+        .returning({ id: trainer.id });
+      const row = inserted[0];
+      if (!row) throw new Error('trainer was not created');
+      await this.replaceClassTypes(tx, session.studioId, row.id, classTypeIds);
+      return row.id;
+    });
+    return this.read(session.studioId, id);
   }
 
   async update(
@@ -135,23 +153,79 @@ export class StudioTrainersService {
     input: TrainerWrite,
   ): Promise<TrainerView> {
     await this.access.assertSection(session, 'catalogs');
-    const changes = {
-      ...(input.name === undefined ? {} : { name: input.name }),
-      ...(input.description === undefined
-        ? {}
-        : { description: input.description }),
-      ...(input.instagram === undefined ? {} : { instagram: input.instagram }),
-      ...(input.tiktok === undefined ? {} : { tiktok: input.tiktok }),
-    };
-    if (Object.keys(changes).length > 0) {
-      const updated = await this.db
-        .update(trainer)
-        .set({ ...changes, updatedAt: new Date() })
-        .where(and(eq(trainer.id, id), eq(trainer.studioId, session.studioId)))
-        .returning({ id: trainer.id });
-      if (!updated[0]) throw ApiError.notFound('Trainer not found');
-    }
+    await this.db.transaction(async (tx) => {
+      const existing = await tx
+        .select({ id: trainer.id })
+        .from(trainer)
+        .where(and(eq(trainer.id, id), eq(trainer.studioId, session.studioId)));
+      if (!existing[0]) throw ApiError.notFound('Trainer not found');
+      const changes = {
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(input.description === undefined
+          ? {}
+          : { description: input.description }),
+        ...(input.instagram === undefined
+          ? {}
+          : { instagram: input.instagram }),
+        ...(input.tiktok === undefined ? {} : { tiktok: input.tiktok }),
+      };
+      if (Object.keys(changes).length > 0) {
+        await tx
+          .update(trainer)
+          .set({ ...changes, updatedAt: new Date() })
+          .where(
+            and(eq(trainer.id, id), eq(trainer.studioId, session.studioId)),
+          );
+      }
+      if (input.classTypeIds !== undefined) {
+        const classTypeIds = [...new Set(input.classTypeIds)];
+        await this.assertClassTypes(tx, session.studioId, classTypeIds);
+        await this.replaceClassTypes(tx, session.studioId, id, classTypeIds);
+      }
+    });
     return this.read(session.studioId, id);
+  }
+
+  private async assertClassTypes(
+    tx: CatalogTx,
+    studioId: string,
+    classTypeIds: string[],
+  ): Promise<void> {
+    if (classTypeIds.length === 0) return;
+    const rows = await tx
+      .select({ id: classType.id })
+      .from(classType)
+      .where(
+        and(
+          eq(classType.studioId, studioId),
+          inArray(classType.id, classTypeIds),
+        ),
+      );
+    if (rows.length !== classTypeIds.length) {
+      throw ApiError.validation([
+        {
+          code: FieldErrorCode.INVALID_VALUE,
+          field: 'classTypeIds',
+          message: 'Choose class types of this studio',
+        },
+      ]);
+    }
+  }
+
+  private async replaceClassTypes(
+    tx: CatalogTx,
+    studioId: string,
+    trainerId: string,
+    classTypeIds: string[],
+  ): Promise<void> {
+    await tx
+      .delete(trainerClassType)
+      .where(eq(trainerClassType.trainerId, trainerId));
+    for (const classTypeId of classTypeIds) {
+      await tx
+        .insert(trainerClassType)
+        .values({ studioId, trainerId, classTypeId });
+    }
   }
 
   async upload(
@@ -287,7 +361,34 @@ export class StudioTrainersService {
     const row = rows[0];
     if (!row) throw ApiError.notFound('Trainer not found');
     const images = await this.imagesOf([row.id]);
-    return toTrainer(row, images.get(row.id) ?? []);
+    const classTypes = await this.classTypesOf([row.id]);
+    return toTrainer(
+      row,
+      images.get(row.id) ?? [],
+      classTypes.get(row.id) ?? [],
+    );
+  }
+
+  private async classTypesOf(ids: string[]): Promise<Map<string, string[]>> {
+    const grouped = new Map<string, string[]>();
+    if (ids.length === 0) return grouped;
+    const rows = await this.db
+      .select({
+        trainerId: trainerClassType.trainerId,
+        classTypeId: trainerClassType.classTypeId,
+      })
+      .from(trainerClassType)
+      .where(inArray(trainerClassType.trainerId, ids))
+      .orderBy(
+        asc(trainerClassType.createdAt),
+        asc(trainerClassType.classTypeId),
+      );
+    for (const row of rows) {
+      const list = grouped.get(row.trainerId) ?? [];
+      list.push(row.classTypeId);
+      grouped.set(row.trainerId, list);
+    }
+    return grouped;
   }
 
   private async imagesOf(ids: string[]) {
@@ -316,6 +417,7 @@ export class StudioTrainersService {
 function toTrainer(
   row: typeof trainer.$inferSelect,
   images: TrainerFileView[],
+  classTypeIds: string[],
 ): TrainerView {
   return {
     id: row.id,
@@ -323,6 +425,7 @@ function toTrainer(
     description: row.description,
     instagram: row.instagram,
     tiktok: row.tiktok,
+    classTypeIds,
     images,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

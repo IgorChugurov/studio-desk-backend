@@ -15,9 +15,12 @@ import {
   ZodBody,
   ZodQuery,
 } from '../../../common/validation/zod.decorators.js';
+import { TIME_ZONES } from '../settings/studio-settings.js';
 import type { StudioRequest } from '../studio-auth.guard.js';
 import { StudioHallsService } from './studio-halls.service.js';
 import { isVideoLink } from './video-link.js';
+
+const timeZones = new Set(TIME_ZONES);
 
 const listQuery = z.object({
   currentPage: z.coerce.number().int().min(1).default(1),
@@ -27,23 +30,35 @@ const listQuery = z.object({
   order: z.enum(['ASC', 'DESC']).default('DESC'),
 });
 
-const hallFields = z.object({
-  name: requiredText(),
-  address: requiredText(),
-  description: optionalText(),
-  videoLink: videoLinkField(),
-});
-
 const createBody = z
-  .object({
-    name: requiredText(),
-    address: requiredText(),
-    description: optionalText().optional(),
-    videoLink: videoLinkField().optional(),
-  })
+  .preprocess(
+    // A virtual hall's address is fixed, so it is filled before validation.
+    // This keeps `address` a field-level required check for an ordinary hall,
+    // in the same order as the other fields.
+    (raw) => {
+      if (raw && typeof raw === 'object') {
+        const value = raw as Record<string, unknown>;
+        if (value.type === 'virtual') {
+          return { ...value, address: 'Virtual hall' };
+        }
+      }
+      return raw;
+    },
+    z.object({
+      type: hallTypeField().optional(),
+      name: requiredText(),
+      address: requiredText(),
+      timeZone: timeZoneField().optional(),
+      description: optionalText().optional(),
+      videoLink: videoLinkField().optional(),
+    }),
+  )
   .transform((value) => ({
-    name: value.name.trim(),
-    address: value.address.trim(),
+    type: (value.type === 'virtual' ? 'virtual' : 'ordinary') as
+      'ordinary' | 'virtual',
+    name: (value.name as string).trim(),
+    address: (value.address as string).trim(),
+    timeZone: presentText(value.timeZone),
     description: storedLink(value.description),
     videoLink: storedLink(value.videoLink),
   }));
@@ -52,16 +67,37 @@ const orderBody = z.object({
   fileIds: z.array(z.uuid()),
 });
 
-const patchBody = hallFields.partial().transform((value) => ({
-  ...(value.name === undefined ? {} : { name: value.name.trim() }),
-  ...(value.address === undefined ? {} : { address: value.address.trim() }),
-  ...(value.description === undefined
-    ? {}
-    : { description: storedLink(value.description) }),
-  ...(value.videoLink === undefined
-    ? {}
-    : { videoLink: storedLink(value.videoLink) }),
-}));
+const patchBody = z
+  .object({
+    type: hallTypeField(),
+    name: requiredText(),
+    address: requiredText(),
+    timeZone: timeZoneField(),
+    description: optionalText(),
+    videoLink: videoLinkField(),
+  })
+  .partial()
+  .transform((value) => {
+    const timeZone = presentText(value.timeZone);
+    return {
+      ...(value.type === undefined
+        ? {}
+        : { type: value.type as 'ordinary' | 'virtual' }),
+      ...(value.name === undefined
+        ? {}
+        : { name: (value.name as string).trim() }),
+      ...(value.address === undefined
+        ? {}
+        : { address: (value.address as string).trim() }),
+      ...(timeZone === undefined ? {} : { timeZone }),
+      ...(value.description === undefined
+        ? {}
+        : { description: storedLink(value.description) }),
+      ...(value.videoLink === undefined
+        ? {}
+        : { videoLink: storedLink(value.videoLink) }),
+    };
+  });
 
 @Controller('halls')
 export class StudioHallsController {
@@ -184,6 +220,37 @@ function optionalText() {
       });
     }
   });
+}
+
+function hallTypeField() {
+  return z.any().superRefine((value, ctx) => {
+    if (value === undefined) return;
+    if (value !== 'ordinary' && value !== 'virtual') {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Choose a hall type',
+        params: { fieldCode: 'INVALID_VALUE' },
+      });
+    }
+  });
+}
+
+function timeZoneField() {
+  return z.any().superRefine((value, ctx) => {
+    if (value === undefined || isBlank(value)) return;
+    if (typeof value !== 'string' || !timeZones.has(value.trim())) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Choose a time zone',
+        params: { fieldCode: 'INVALID_VALUE' },
+      });
+    }
+  });
+}
+
+function presentText(value: unknown): string | undefined {
+  if (value === undefined || isBlank(value)) return undefined;
+  return (value as string).trim();
 }
 
 function videoLinkField() {

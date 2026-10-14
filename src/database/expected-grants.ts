@@ -105,4 +105,9 @@ export const expectedGrants: Record<
     studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
     public_api: [],
   },
+  trainer_class_type: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'DELETE'],
+    public_api: [],
+  },
 };

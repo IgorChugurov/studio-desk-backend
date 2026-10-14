@@ -141,7 +141,7 @@ describe('studio trainers and class types', () => {
     const classType = await http()
       .post('/api/studio/class-types')
       .set('Authorization', `Bearer ${token}`)
-      .send({ name: 'Yoga', description: '' });
+      .send({ name: 'Yoga', description: '', defaultDuration: 60 });
     expect(classType.status).toBe(201);
     expect(classType.body.description).toBeNull();
     const classFile = await http()
