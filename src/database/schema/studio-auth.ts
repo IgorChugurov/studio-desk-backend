@@ -9,6 +9,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { trainer } from './catalog.js';
 import { platformAdministrator } from './platform-auth.js';
 import { studio } from './studio.js';
 
@@ -41,8 +42,37 @@ export const studioStaff = pgTable(
     ),
     check(
       'studio_staff_role',
-      sql`${table.role} in ('administrator', 'accountant')`,
+      sql`${table.role} in ('administrator', 'accountant', 'trainer')`,
     ),
+  ],
+);
+
+/**
+ * One catalog trainer for a staff member whose role is trainer.
+ * `staff_id` is the primary key, so a staff member has at most one link.
+ * `trainer_id` is unique, so a catalog trainer has at most one staff member.
+ * Deleting the staff member deletes this row. Deleting the trainer is refused
+ * while the row exists.
+ */
+export const staffTrainer = pgTable(
+  'staff_trainer',
+  {
+    studioId: uuid('studio_id')
+      .notNull()
+      .references(() => studio.id),
+    staffId: uuid('staff_id')
+      .primaryKey()
+      .references(() => studioStaff.id, { onDelete: 'cascade' }),
+    trainerId: uuid('trainer_id')
+      .notNull()
+      .references(() => trainer.id),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('staff_trainer_trainer_id_unique').on(table.trainerId),
+    index('staff_trainer_studio_id_idx').on(table.studioId),
   ],
 );
 

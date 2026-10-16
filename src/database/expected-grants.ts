@@ -70,6 +70,11 @@ export const expectedGrants: Record<
     studio_api: [],
     public_api: [],
   },
+  staff_trainer: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+    public_api: [],
+  },
   studio: {
     platform_api: ['SELECT', 'INSERT', 'UPDATE'],
     studio_api: ['SELECT'],

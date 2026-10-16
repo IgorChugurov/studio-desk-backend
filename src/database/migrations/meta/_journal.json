@@ -92,6 +92,13 @@
       "when": 1791991588379,
       "tag": "0012_catalog_schedule_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792180618245,
+      "tag": "0013_staff_trainer",
+      "breakpoints": true
     }
   ]
 }

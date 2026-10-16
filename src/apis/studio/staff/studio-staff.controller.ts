@@ -19,16 +19,71 @@ import {
 import type { StudioRequest } from '../studio-auth.guard.js';
 import { StudioStaffService } from './studio-staff.service.js';
 
-const roleField = z.enum(['administrator', 'accountant'], {
+const roleField = z.enum(['administrator', 'accountant', 'trainer'], {
   error: 'Choose a role',
 });
 
-const addBody = z.object({
-  email: emailField,
-  role: roleField,
-});
+const trainerIdField = z.preprocess((value) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}, z.uuid().nullable().optional());
 
-const roleBody = z.object({ role: roleField });
+const addBody = z
+  .object({
+    email: emailField,
+    role: roleField,
+    trainerId: trainerIdField,
+  })
+  .superRefine((value, ctx) => {
+    if (value.role === 'trainer') {
+      if (value.trainerId == null) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['trainerId'],
+          message: 'Select a trainer',
+          params: { fieldCode: 'REQUIRED' },
+        });
+      }
+      return;
+    }
+    if (value.trainerId) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['trainerId'],
+        message: 'A trainer is only linked to the trainer role',
+        params: { fieldCode: 'INVALID_VALUE' },
+      });
+    }
+  });
+
+const updateBody = z
+  .object({
+    role: roleField.optional(),
+    trainerId: trainerIdField,
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.role !== undefined &&
+      value.role !== 'trainer' &&
+      value.trainerId
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['trainerId'],
+        message: 'A trainer is only linked to the trainer role',
+        params: { fieldCode: 'INVALID_VALUE' },
+      });
+    }
+    if (value.role === 'trainer' && value.trainerId === null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['trainerId'],
+        message: 'Select a trainer',
+        params: { fieldCode: 'REQUIRED' },
+      });
+    }
+  });
 
 const listQuery = z.object({
   currentPage: z.coerce.number().int().min(1).default(1),
@@ -54,7 +109,8 @@ export class StudioStaffController {
   @ApiResponse({ status: 201 })
   @ApiResponse({
     status: 409,
-    description: 'STAFF_ALREADY_ADDED or EMAIL_IS_OWNER',
+    description:
+      'STAFF_ALREADY_ADDED, EMAIL_IS_OWNER, or TRAINER_ALREADY_LINKED',
   })
   add(
     @Req() request: StudioRequest,
@@ -69,12 +125,12 @@ export class StudioStaffController {
   }
 
   @Patch(':id')
-  changeRole(
+  update(
     @Req() request: StudioRequest,
     @Param('id') id: string,
-    @ZodBody(roleBody) body: z.infer<typeof roleBody>,
+    @ZodBody(updateBody) body: z.infer<typeof updateBody>,
   ) {
-    return this.staff.changeRole(sessionOf(request), parseId(id), body.role);
+    return this.staff.update(sessionOf(request), parseId(id), body);
   }
 
   @Delete(':id')
