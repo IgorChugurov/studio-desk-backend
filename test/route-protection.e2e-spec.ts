@@ -46,7 +46,7 @@ describe('route protection', () => {
     expect(paths).toEqual(
       expect.arrayContaining([
         '/api/platform/fixture/closed',
-        '/api/studio/fixture/closed',
+        '/api/organization/fixture/closed',
         '/api/public/fixture/closed',
         '/api/outside/closed',
         '/api/health',

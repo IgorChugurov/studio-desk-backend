@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
-import { storageRoot } from './apis/studio/halls/storage-path.js';
+import { storageRoot } from './apis/organization/halls/storage-path.js';
 import { setupOpenApi } from './common/openapi/setup-openapi.js';
 import { loadEnv } from './config/env.js';
 

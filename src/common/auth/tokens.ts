@@ -37,14 +37,14 @@ export function sameHash(left: string, right: string): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export type TokenApi = 'platform' | 'studio';
+export type TokenApi = 'platform' | 'organization';
 
 export interface AccessTokenClaims {
   sub: string;
   sid: string;
   api: TokenApi;
   /** Only in studio tokens: the studio of the session. */
-  studioId?: string;
+  organizationId?: string;
 }
 
 /** Signs a 15-minute access token. The token is not stored. */
@@ -54,11 +54,13 @@ export function signAccessToken(
   now = Date.now(),
 ): string {
   const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const { studioId, ...rest } = claims;
+  const { organizationId, ...rest } = claims;
   const body = base64url(
     JSON.stringify({
       ...rest,
-      ...(studioId === undefined ? {} : { studio_id: studioId }),
+      ...(organizationId === undefined
+        ? {}
+        : { organization_id: organizationId }),
       iat: Math.floor(now / 1000),
       exp: Math.floor(now / 1000) + ACCESS_TOKEN_TTL_SECONDS,
     }),
@@ -89,7 +91,7 @@ export function readAccessToken(
       sub?: unknown;
       sid?: unknown;
       api?: unknown;
-      studio_id?: unknown;
+      organization_id?: unknown;
       exp?: unknown;
     };
     if (
@@ -101,13 +103,13 @@ export function readAccessToken(
     ) {
       return undefined;
     }
-    if (api === 'studio') {
-      if (typeof payload.studio_id !== 'string') return undefined;
+    if (api === 'organization') {
+      if (typeof payload.organization_id !== 'string') return undefined;
       return {
         sub: payload.sub,
         sid: payload.sid,
         api,
-        studioId: payload.studio_id,
+        organizationId: payload.organization_id,
       };
     }
     return { sub: payload.sub, sid: payload.sid, api };

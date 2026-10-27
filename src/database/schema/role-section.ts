@@ -15,13 +15,13 @@ export const roleSection = pgTable(
     primaryKey({ columns: [table.role, table.section] }),
     check(
       'role_section_role',
-      sql`${table.role} in ('owner', 'administrator', 'accountant', 'trainer')`,
+      sql`${table.role} in ('owner', 'administrator', 'accountant', 'specialist')`,
     ),
     check(
       'role_section_section',
       sql`${table.section} in (
         'schedule', 'catalogs', 'clients', 'subscriptions',
-        'accounting', 'studio-settings', 'staff'
+        'accounting', 'organization-settings', 'staff'
       )`,
     ),
   ],

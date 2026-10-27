@@ -10,16 +10,16 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { studio } from './studio.js';
+import { organization } from './organization.js';
 
 /** A trainer card of one studio. Rows are not deleted in this topic. */
 export const trainer = pgTable(
   'trainer',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    studioId: uuid('studio_id')
+    organizationId: uuid('organization_id')
       .notNull()
-      .references(() => studio.id),
+      .references(() => organization.id),
     name: text('name').notNull(),
     description: text('description'),
     instagram: text('instagram'),
@@ -32,7 +32,7 @@ export const trainer = pgTable(
       .defaultNow(),
   },
   (table) => [
-    index('trainer_studio_id_idx').on(table.studioId),
+    index('trainer_organization_id_idx').on(table.organizationId),
     check(
       'trainer_name_not_blank',
       sql`${table.name} = btrim(${table.name}) and char_length(${table.name}) > 0`,
@@ -91,9 +91,9 @@ export const classType = pgTable(
   'class_type',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    studioId: uuid('studio_id')
+    organizationId: uuid('organization_id')
       .notNull()
-      .references(() => studio.id),
+      .references(() => organization.id),
     name: text('name').notNull(),
     description: text('description'),
     /** Minutes, 5 to 240 in steps of 5. Prefills the class form. */
@@ -106,7 +106,7 @@ export const classType = pgTable(
       .defaultNow(),
   },
   (table) => [
-    index('class_type_studio_id_idx').on(table.studioId),
+    index('class_type_organization_id_idx').on(table.organizationId),
     check(
       'class_type_name_not_blank',
       sql`${table.name} = btrim(${table.name}) and char_length(${table.name}) > 0`,
@@ -130,9 +130,9 @@ export const classType = pgTable(
 export const trainerClassType = pgTable(
   'trainer_class_type',
   {
-    studioId: uuid('studio_id')
+    organizationId: uuid('organization_id')
       .notNull()
-      .references(() => studio.id),
+      .references(() => organization.id),
     trainerId: uuid('trainer_id')
       .notNull()
       .references(() => trainer.id),
@@ -145,7 +145,7 @@ export const trainerClassType = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.trainerId, table.classTypeId] }),
-    index('trainer_class_type_studio_id_idx').on(table.studioId),
+    index('trainer_class_type_organization_id_idx').on(table.organizationId),
     index('trainer_class_type_class_type_id_idx').on(table.classTypeId),
   ],
 );

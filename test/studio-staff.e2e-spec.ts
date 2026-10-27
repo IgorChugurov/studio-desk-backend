@@ -4,6 +4,7 @@ import { signAccessToken } from '../src/common/auth/tokens.js';
 import { loadEnv } from '../src/config/env.js';
 import { createTestApp } from './support/app.js';
 import { ownerPool } from './support/db.js';
+import { INSERT_ORGANIZATION } from './support/insert-organization.js';
 
 const OWNER = 'owner@example.com';
 const OLGA = 'olga@example.com';
@@ -36,26 +37,28 @@ describe('studio staff and access', () => {
 
   async function createStudio(name: string, owner = OWNER) {
     const subdomain = name.toLowerCase().replace(/\s+/g, '-');
-    const rows = await sql<{ id: string }>(
-      `insert into studio (name, subdomain, owner_email) values ($1, $2, $3) returning id`,
-      [name, subdomain, owner],
-    );
+    const rows = await sql<{ id: string }>(INSERT_ORGANIZATION, [
+      name,
+      subdomain,
+      owner,
+      'active',
+    ]);
     return rows[0]!.id;
   }
 
   async function sessionFor(
-    studioId: string,
+    organizationId: string,
     email: string,
     impersonatedBy: string | null = null,
   ) {
     const rows = await sql<{ id: string }>(
-      `insert into studio_session (studio_id, email, expires_at, refresh_token_hash, impersonated_by)
+      `insert into organization_session (organization_id, email, expires_at, refresh_token_hash, impersonated_by)
        values ($1, $2, now() + interval '1 day', gen_random_uuid()::text, $3)
        returning id`,
-      [studioId, email, impersonatedBy],
+      [organizationId, email, impersonatedBy],
     );
     return signAccessToken(
-      { sub: email, sid: rows[0]!.id, api: 'studio', studioId },
+      { sub: email, sid: rows[0]!.id, api: 'organization', organizationId },
       loadEnv().ACCESS_TOKEN_SECRET,
     );
   }
@@ -76,7 +79,7 @@ describe('studio staff and access', () => {
   it('tells the owner who they are, including every section from the table', async () => {
     const yoga = await createStudio('Yoga');
     const owner = authed(await sessionFor(yoga, OWNER));
-    const me = await owner.get('/api/studio/me');
+    const me = await owner.get('/api/organization/me');
     expect(me.status).toBe(200);
     expect(me.body.role).toBe('owner');
     expect(me.body.user).toEqual({ email: OWNER, interfaceLanguage: null });
@@ -86,14 +89,14 @@ describe('studio staff and access', () => {
       'clients',
       'subscriptions',
       'accounting',
-      'studio-settings',
+      'organization-settings',
       'staff',
     ]);
     expect(me.body.impersonated).toBe(false);
-    expect(me.body.studios).toEqual([{ id: yoga, name: 'Yoga' }]);
+    expect(me.body.organizations).toEqual([{ id: yoga, name: 'Yoga' }]);
 
     const seeded = await sql<{ role: string; section: string }>(
-      `select role, section from role_section where role = 'trainer' order by section`,
+      `select role, section from role_section where role = 'specialist' order by section`,
     );
     expect(seeded.map((row) => row.section)).toEqual([
       'accounting',
@@ -107,12 +110,12 @@ describe('studio staff and access', () => {
     const other = await createStudio('Other');
     const owner = authed(await sessionFor(yoga, OWNER));
     await sql(
-      `insert into studio_staff (studio_id, email, role) values ($1, $2, 'administrator')`,
+      `insert into organization_staff (organization_id, email, role) values ($1, $2, 'administrator')`,
       [other, OLGA],
     );
     const elsewhere = await sessionFor(other, OLGA);
 
-    const added = await owner.post('/api/studio/staff', {
+    const added = await owner.post('/api/organization/staff', {
       email: 'Olga@Example.com',
       role: 'administrator',
     });
@@ -122,7 +125,7 @@ describe('studio staff and access', () => {
     expect(added.body.trainerId).toBeNull();
 
     const olgaToken = await sessionFor(yoga, OLGA);
-    const before = await authed(olgaToken).get('/api/studio/me');
+    const before = await authed(olgaToken).get('/api/organization/me');
     expect(before.body.role).toBe('administrator');
     expect(before.body.sections).toEqual([
       'schedule',
@@ -130,48 +133,55 @@ describe('studio staff and access', () => {
       'clients',
       'subscriptions',
     ]);
-    expect((await authed(olgaToken).get('/api/studio/settings')).status).toBe(
-      403,
-    );
+    expect(
+      (await authed(olgaToken).get('/api/organization/settings')).status,
+    ).toBe(403);
 
-    const edited = await owner.patch(`/api/studio/staff/${added.body.id}`, {
-      role: 'accountant',
-    });
+    const edited = await owner.patch(
+      `/api/organization/staff/${added.body.id}`,
+      {
+        role: 'accountant',
+      },
+    );
     expect(edited.status).toBe(200);
     expect(edited.body.role).toBe('accountant');
-    const after = await authed(olgaToken).get('/api/studio/me');
+    const after = await authed(olgaToken).get('/api/organization/me');
     expect(after.body.role).toBe('accountant');
     expect(after.body.sections).toEqual(['accounting']);
 
-    const removed = await owner.del(`/api/studio/staff/${added.body.id}`);
+    const removed = await owner.del(`/api/organization/staff/${added.body.id}`);
     expect(removed.status).toBe(204);
-    expect((await authed(olgaToken).get('/api/studio/me')).status).toBe(401);
-    expect((await authed(elsewhere).get('/api/studio/me')).status).toBe(200);
+    expect((await authed(olgaToken).get('/api/organization/me')).status).toBe(
+      401,
+    );
+    expect((await authed(elsewhere).get('/api/organization/me')).status).toBe(
+      200,
+    );
   });
 
   it('rejects a duplicate, the owner address, a bad role, and a staff member opening the list', async () => {
     const yoga = await createStudio('Yoga');
     const owner = authed(await sessionFor(yoga, OWNER));
-    await owner.post('/api/studio/staff', {
+    await owner.post('/api/organization/staff', {
       email: OLGA,
       role: 'administrator',
     });
 
-    const again = await owner.post('/api/studio/staff', {
+    const again = await owner.post('/api/organization/staff', {
       email: OLGA,
       role: 'accountant',
     });
     expect(again.status).toBe(409);
     expect(again.body.code).toBe('STAFF_ALREADY_ADDED');
 
-    const ownerMail = await owner.post('/api/studio/staff', {
+    const ownerMail = await owner.post('/api/organization/staff', {
       email: OWNER,
       role: 'administrator',
     });
     expect(ownerMail.status).toBe(409);
     expect(ownerMail.body.code).toBe('EMAIL_IS_OWNER');
 
-    const bad = await owner.post('/api/studio/staff', {
+    const bad = await owner.post('/api/organization/staff', {
       email: 'not-an-email',
       role: 'owner',
     });
@@ -185,8 +195,8 @@ describe('studio staff and access', () => {
     );
 
     const olga = authed(await sessionFor(yoga, OLGA));
-    expect((await olga.get('/api/studio/staff')).status).toBe(403);
-    const list = await owner.get('/api/studio/staff');
+    expect((await olga.get('/api/organization/staff')).status).toBe(403);
+    const list = await owner.get('/api/organization/staff');
     expect(list.body.items).toHaveLength(1);
     expect(list.body.items[0].email).toBe(OLGA);
     expect(list.body.items[0].trainerId).toBeNull();
@@ -200,9 +210,9 @@ describe('studio staff and access', () => {
     const boris = await createTrainer(yoga, 'Boris');
     const stranger = await createTrainer(other, 'Stranger');
 
-    const missing = await owner.post('/api/studio/staff', {
+    const missing = await owner.post('/api/organization/staff', {
       email: 'anna@example.com',
-      role: 'trainer',
+      role: 'specialist',
     });
     expect(missing.status).toBe(400);
     expect(missing.body.errors).toEqual(
@@ -215,7 +225,7 @@ describe('studio staff and access', () => {
       ]),
     );
 
-    const withRole = await owner.post('/api/studio/staff', {
+    const withRole = await owner.post('/api/organization/staff', {
       email: OLGA,
       role: 'administrator',
       trainerId: anna,
@@ -227,12 +237,15 @@ describe('studio staff and access', () => {
       ]),
     );
     expect(
-      await sql(`select id from studio_staff where studio_id = $1`, [yoga]),
+      await sql(
+        `select id from organization_staff where organization_id = $1`,
+        [yoga],
+      ),
     ).toHaveLength(0);
 
-    const otherStudio = await owner.post('/api/studio/staff', {
+    const otherStudio = await owner.post('/api/organization/staff', {
       email: 'anna@example.com',
-      role: 'trainer',
+      role: 'specialist',
       trainerId: stranger,
     });
     expect(otherStudio.status).toBe(400);
@@ -242,21 +255,21 @@ describe('studio staff and access', () => {
       ]),
     );
 
-    const added = await owner.post('/api/studio/staff', {
+    const added = await owner.post('/api/organization/staff', {
       email: 'Anna@Example.com',
-      role: 'trainer',
+      role: 'specialist',
       trainerId: anna,
     });
     expect(added.status).toBe(201);
     expect(added.body).toMatchObject({
       email: 'anna@example.com',
-      role: 'trainer',
+      role: 'specialist',
       trainerId: anna,
     });
 
-    const again = await owner.post('/api/studio/staff', {
+    const again = await owner.post('/api/organization/staff', {
       email: 'boris@example.com',
-      role: 'trainer',
+      role: 'specialist',
       trainerId: anna,
     });
     expect(again.status).toBe(409);
@@ -264,42 +277,49 @@ describe('studio staff and access', () => {
     expect(again.body.field).toBe('trainerId');
 
     const annaToken = await sessionFor(yoga, 'anna@example.com');
-    const me = await authed(annaToken).get('/api/studio/me');
+    const me = await authed(annaToken).get('/api/organization/me');
     expect(me.status).toBe(200);
-    expect(me.body.role).toBe('trainer');
+    expect(me.body.role).toBe('specialist');
     expect(me.body.trainerId).toBeUndefined();
     expect(me.body.sections).toEqual(['schedule', 'clients', 'accounting']);
-    expect((await authed(annaToken).get('/api/studio/staff')).status).toBe(403);
+    expect(
+      (await authed(annaToken).get('/api/organization/staff')).status,
+    ).toBe(403);
 
-    const listed = await owner.get('/api/studio/staff');
+    const listed = await owner.get('/api/organization/staff');
     expect(listed.body.items).toEqual([
       expect.objectContaining({ email: 'anna@example.com', trainerId: anna }),
     ]);
 
-    const kept = await owner.patch(`/api/studio/staff/${added.body.id}`, {
+    const kept = await owner.patch(`/api/organization/staff/${added.body.id}`, {
       trainerId: anna,
     });
     expect(kept.status).toBe(200);
     expect(kept.body.trainerId).toBe(anna);
 
-    const replaced = await owner.patch(`/api/studio/staff/${added.body.id}`, {
-      trainerId: boris,
-    });
+    const replaced = await owner.patch(
+      `/api/organization/staff/${added.body.id}`,
+      {
+        trainerId: boris,
+      },
+    );
     expect(replaced.status).toBe(200);
     expect(replaced.body.trainerId).toBe(boris);
 
     const leaveWithCard = await owner.patch(
-      `/api/studio/staff/${added.body.id}`,
+      `/api/organization/staff/${added.body.id}`,
       { role: 'accountant', trainerId: anna },
     );
     expect(leaveWithCard.status).toBe(400);
-    const stillTrainer = await owner.get(`/api/studio/staff/${added.body.id}`);
+    const stillTrainer = await owner.get(
+      `/api/organization/staff/${added.body.id}`,
+    );
     expect(stillTrainer.body).toMatchObject({
-      role: 'trainer',
+      role: 'specialist',
       trainerId: boris,
     });
 
-    const left = await owner.patch(`/api/studio/staff/${added.body.id}`, {
+    const left = await owner.patch(`/api/organization/staff/${added.body.id}`, {
       role: 'accountant',
     });
     expect(left.status).toBe(200);
@@ -313,9 +333,12 @@ describe('studio staff and access', () => {
       await sql(`select id from trainer where id = $1`, [boris]),
     ).toHaveLength(1);
 
-    const become = await owner.patch(`/api/studio/staff/${added.body.id}`, {
-      role: 'trainer',
-    });
+    const become = await owner.patch(
+      `/api/organization/staff/${added.body.id}`,
+      {
+        role: 'specialist',
+      },
+    );
     expect(become.status).toBe(400);
     expect(become.body.errors).toEqual(
       expect.arrayContaining([
@@ -323,18 +346,18 @@ describe('studio staff and access', () => {
       ]),
     );
     const stillAccountant = await owner.get(
-      `/api/studio/staff/${added.body.id}`,
+      `/api/organization/staff/${added.body.id}`,
     );
     expect(stillAccountant.body.role).toBe('accountant');
 
-    const back = await owner.patch(`/api/studio/staff/${added.body.id}`, {
-      role: 'trainer',
+    const back = await owner.patch(`/api/organization/staff/${added.body.id}`, {
+      role: 'specialist',
       trainerId: anna,
     });
     expect(back.status).toBe(200);
     expect(back.body.trainerId).toBe(anna);
 
-    const removed = await owner.del(`/api/studio/staff/${added.body.id}`);
+    const removed = await owner.del(`/api/organization/staff/${added.body.id}`);
     expect(removed.status).toBe(204);
     expect(
       await sql(`select staff_id from staff_trainer where staff_id = $1`, [
@@ -344,7 +367,9 @@ describe('studio staff and access', () => {
     expect(
       await sql(`select id from trainer where id = $1`, [anna]),
     ).toHaveLength(1);
-    expect((await authed(annaToken).get('/api/studio/me')).status).toBe(401);
+    expect((await authed(annaToken).get('/api/organization/me')).status).toBe(
+      401,
+    );
   });
 
   it('lets only one of two simultaneous links to the same trainer succeed', async () => {
@@ -352,14 +377,14 @@ describe('studio staff and access', () => {
     const owner = authed(await sessionFor(yoga, OWNER));
     const anna = await createTrainer(yoga, 'Anna');
     const [first, second] = await Promise.all([
-      owner.post('/api/studio/staff', {
+      owner.post('/api/organization/staff', {
         email: 'one@example.com',
-        role: 'trainer',
+        role: 'specialist',
         trainerId: anna,
       }),
-      owner.post('/api/studio/staff', {
+      owner.post('/api/organization/staff', {
         email: 'two@example.com',
-        role: 'trainer',
+        role: 'specialist',
         trainerId: anna,
       }),
     ]);
@@ -375,12 +400,12 @@ describe('studio staff and access', () => {
   });
 });
 
-async function createTrainer(studioId: string, name: string) {
+async function createTrainer(organizationId: string, name: string) {
   const pool = ownerPool();
   try {
     const { rows } = await pool.query<{ id: string }>(
-      `insert into trainer (studio_id, name) values ($1, $2) returning id`,
-      [studioId, name],
+      `insert into trainer (organization_id, name) values ($1, $2) returning id`,
+      [organizationId, name],
     );
     return rows[0]!.id;
   } finally {

@@ -4,6 +4,7 @@ import { signAccessToken } from '../src/common/auth/tokens.js';
 import { loadEnv } from '../src/config/env.js';
 import { createTestApp } from './support/app.js';
 import { ownerPool } from './support/db.js';
+import { INSERT_ORGANIZATION } from './support/insert-organization.js';
 
 describe('interface language', () => {
   let app: INestApplication;
@@ -32,12 +33,14 @@ describe('interface language', () => {
   }
 
   async function tokenFor(name: string, email: string) {
-    const studio = await sql<{ id: string }>(
-      `insert into studio (name, subdomain, owner_email) values ($1, $2, $3) returning id`,
-      [name, name.toLowerCase(), email],
-    );
+    const studio = await sql<{ id: string }>(INSERT_ORGANIZATION, [
+      name,
+      name.toLowerCase(),
+      email,
+      'active',
+    ]);
     const session = await sql<{ id: string }>(
-      `insert into studio_session (studio_id, email, expires_at, refresh_token_hash)
+      `insert into organization_session (organization_id, email, expires_at, refresh_token_hash)
        values ($1, $2, now() + interval '1 day', gen_random_uuid()::text)
        returning id`,
       [studio[0]!.id, email],
@@ -46,8 +49,8 @@ describe('interface language', () => {
       {
         sub: email,
         sid: session[0]!.id,
-        api: 'studio',
-        studioId: studio[0]!.id,
+        api: 'organization',
+        organizationId: studio[0]!.id,
       },
       loadEnv().ACCESS_TOKEN_SECRET,
     );
@@ -56,10 +59,12 @@ describe('interface language', () => {
   function authed(token: string) {
     return {
       get: () =>
-        http().get('/api/studio/me').set('Authorization', `Bearer ${token}`),
+        http()
+          .get('/api/organization/me')
+          .set('Authorization', `Bearer ${token}`),
       patch: (body: Record<string, unknown>) =>
         http()
-          .patch('/api/studio/me/language')
+          .patch('/api/organization/me/language')
           .set('Authorization', `Bearer ${token}`)
           .send(body),
     };

@@ -79,7 +79,7 @@ export const fixtureImports = [
   OutsideFixtureModule,
   RouterModule.register([
     { path: 'platform', module: PlatformFixtureModule },
-    { path: 'studio', module: StudioFixtureModule },
+    { path: 'organization', module: StudioFixtureModule },
     { path: 'public', module: PublicFixtureModule },
   ]),
 ];

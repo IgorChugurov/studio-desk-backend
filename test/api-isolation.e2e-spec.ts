@@ -14,7 +14,7 @@ import { INSUFFICIENT_PRIVILEGE, pgErrorCode } from './support/db.js';
 
 const API_DB = {
   platform: { token: 'PLATFORM_DB', role: 'platform_api' },
-  studio: { token: 'STUDIO_DB', role: 'studio_api' },
+  organization: { token: 'STUDIO_DB', role: 'studio_api' },
   public: { token: 'PUBLIC_DB', role: 'public_api' },
 } as const;
 

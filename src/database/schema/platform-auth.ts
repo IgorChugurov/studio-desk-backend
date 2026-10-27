@@ -8,7 +8,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { studio } from './studio.js';
+import { organization } from './organization.js';
 
 /** The single platform administrator. The row itself is not inserted by a migration. */
 export const platformAdministrator = pgTable(
@@ -66,7 +66,7 @@ export const authSession = pgTable(
     rotatedAt: timestamp('rotated_at', { withTimezone: true }),
   },
   (table) => [
-    check('session_api', sql`${table.api} in ('platform', 'studio')`),
+    check('session_api', sql`${table.api} in ('platform', 'organization')`),
   ],
 );
 
@@ -77,9 +77,9 @@ export const authSession = pgTable(
 export const handoffCode = pgTable('handoff_code', {
   id: uuid('id').primaryKey().defaultRandom(),
   codeHash: text('code_hash').notNull().unique(),
-  studioId: uuid('studio_id')
+  organizationId: uuid('organization_id')
     .notNull()
-    .references(() => studio.id),
+    .references(() => organization.id),
   platformAdministratorId: uuid('platform_administrator_id')
     .notNull()
     .references(() => platformAdministrator.id),

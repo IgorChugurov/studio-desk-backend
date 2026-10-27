@@ -7,7 +7,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { PlatformAuthGuard } from '../../apis/platform/platform-auth.guard.js';
 import { PublicAuthGuard } from '../../apis/public/public-auth.guard.js';
-import { StudioAuthGuard } from '../../apis/studio/studio-auth.guard.js';
+import { StudioAuthGuard } from '../../apis/organization/studio-auth.guard.js';
 import { ApiError } from '../errors/api-error.js';
 import { IS_PUBLIC_KEY } from './public.decorator.js';
 
@@ -28,7 +28,7 @@ export class ApiAuthGuard implements CanActivate {
   ) {
     this.guards = [
       ['/api/platform', platform],
-      ['/api/studio', studio],
+      ['/api/organization', studio],
       ['/api/public', publicApi],
     ];
   }

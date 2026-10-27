@@ -9,16 +9,16 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { studio } from './studio.js';
+import { organization } from './organization.js';
 
 /** A hall of one studio. Rows are not deleted in this topic. */
 export const hall = pgTable(
   'hall',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    studioId: uuid('studio_id')
+    organizationId: uuid('organization_id')
       .notNull()
-      .references(() => studio.id),
+      .references(() => organization.id),
     /** `ordinary` or `virtual`. Chosen on create and changeable later. */
     type: text('type').notNull().default('ordinary'),
     name: text('name').notNull(),
@@ -35,7 +35,7 @@ export const hall = pgTable(
       .defaultNow(),
   },
   (table) => [
-    index('hall_studio_id_idx').on(table.studioId),
+    index('hall_organization_id_idx').on(table.organizationId),
     check('hall_type', sql`${table.type} in ('ordinary', 'virtual')`),
     check(
       'hall_name_not_blank',

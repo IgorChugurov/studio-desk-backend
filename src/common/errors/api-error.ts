@@ -27,12 +27,23 @@ export interface FieldError {
   message: string;
 }
 
+export interface ScheduleConflict {
+  classTypeName?: string;
+  trainerName?: string;
+  hallName?: string;
+  start: string;
+  end: string;
+  classId?: string;
+}
+
 export interface ApiErrorBody {
   statusCode: number;
   code: string;
   message: string;
   field?: string;
   errors?: FieldError[];
+  conflict?: ScheduleConflict;
+  conflicts?: unknown[];
 }
 
 /** The only exception type that features throw to report an API error. */

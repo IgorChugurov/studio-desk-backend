@@ -4,6 +4,7 @@ import { signAccessToken } from '../src/common/auth/tokens.js';
 import { loadEnv } from '../src/config/env.js';
 import { createTestApp } from './support/app.js';
 import { ownerPool } from './support/db.js';
+import { FITNESS_PRESET_ID } from './support/insert-organization.js';
 
 describe('studios', () => {
   let app: INestApplication;
@@ -23,7 +24,7 @@ describe('studios', () => {
 
   it('creates a studio, lowercases the address, and lists the newest first', async () => {
     const created = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ subdomain: 'Yoga-2', customDomain: 'YogaSpace.com' }));
     expect(created.status).toBe(201);
@@ -33,18 +34,18 @@ describe('studios', () => {
     expect(created.body.owner).toEqual({ email: 'owner@example.com' });
 
     await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ name: 'Older', subdomain: 'older' }));
 
     const pool = ownerPool();
     await pool.query(
-      `update studio set created_at = now() - interval '1 day' where subdomain = 'older'`,
+      `update organization set created_at = now() - interval '1 day' where subdomain = 'older'`,
     );
     await pool.end();
 
     const list = await request(app.getHttpServer())
-      .get('/api/platform/studios')
+      .get('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`);
     expect(list.status).toBe(200);
     expect(
@@ -55,7 +56,7 @@ describe('studios', () => {
 
   it('rejects format boundaries and reports every format error together', async () => {
     const res = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send({
         name: 'A',
@@ -67,13 +68,15 @@ describe('studios', () => {
     expect(res.body.code).toBe('VALIDATION_ERROR');
     expect(
       res.body.errors.map((error: { field: string }) => error.field).sort(),
-    ).toEqual(['customDomain', 'name', 'owner.email', 'subdomain'].sort());
+    ).toEqual(
+      ['customDomain', 'name', 'owner.email', 'presetId', 'subdomain'].sort(),
+    );
   });
 
   it('rejects a subdomain of length 2, 21, a trailing hyphen, and a leading digit', async () => {
     for (const subdomain of ['ab', 'a'.repeat(21), 'ab-', '1abc']) {
       const res = await request(app.getHttpServer())
-        .post('/api/platform/studios')
+        .post('/api/platform/organizations')
         .set('Authorization', `Bearer ${token}`)
         .send(body({ subdomain }));
       expect({ subdomain, status: res.status, code: res.body.code }).toEqual({
@@ -87,7 +90,7 @@ describe('studios', () => {
   it('accepts subdomain lengths 3 and 20', async () => {
     for (const subdomain of ['abc', `${'a'.repeat(19)}b`]) {
       const res = await request(app.getHttpServer())
-        .post('/api/platform/studios')
+        .post('/api/platform/organizations')
         .set('Authorization', `Bearer ${token}`)
         .send(body({ subdomain }));
       expect(res.status).toBe(201);
@@ -97,7 +100,7 @@ describe('studios', () => {
   it('reserves api, admin, app, and www', async () => {
     for (const subdomain of ['api', 'admin', 'app', 'www']) {
       const res = await request(app.getHttpServer())
-        .post('/api/platform/studios')
+        .post('/api/platform/organizations')
         .set('Authorization', `Bearer ${token}`)
         .send(body({ subdomain }));
       expect(res.body.code).toBe('SUBDOMAIN_RESERVED');
@@ -106,16 +109,16 @@ describe('studios', () => {
 
   it('keeps a subdomain taken, including for a deactivated studio', async () => {
     await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ subdomain: 'taken' }));
     const pool = ownerPool();
     await pool.query(
-      `update studio set status = 'deactivated' where subdomain = 'taken'`,
+      `update organization set status = 'deactivated' where subdomain = 'taken'`,
     );
     await pool.end();
     const again = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ subdomain: 'Taken' }));
     expect(again.status).toBe(409);
@@ -124,13 +127,13 @@ describe('studios', () => {
 
   it('rejects a platform domain and a label that starts with a hyphen', async () => {
     const platform = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ customDomain: 'www.studio-desk.axondigital.xyz' }));
     expect(platform.body.code).toBe('VALIDATION_ERROR');
 
     const edge = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ customDomain: '-bad.com' }));
     expect(edge.body.code).toBe('VALIDATION_ERROR');
@@ -138,17 +141,17 @@ describe('studios', () => {
 
   it('stores an empty custom domain as null and rejects a duplicate domain', async () => {
     const created = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ customDomain: '   ' }));
     expect(created.body.customDomain).toBeNull();
 
     await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ subdomain: 'one', customDomain: 'yoga.com' }));
     const duplicate = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ subdomain: 'two', customDomain: 'YOGA.com' }));
     expect(duplicate.body.code).toBe('DOMAIN_TAKEN');
@@ -156,11 +159,11 @@ describe('studios', () => {
 
   it('does not treat % in search as a wildcard', async () => {
     await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ name: 'Percent', subdomain: 'percent' }));
     const res = await request(app.getHttpServer())
-      .get('/api/platform/studios')
+      .get('/api/platform/organizations')
       .query({ search: '%' })
       .set('Authorization', `Bearer ${token}`);
     expect(res.body.items).toEqual([]);
@@ -168,11 +171,11 @@ describe('studios', () => {
 
   it('changes the owner e-mail', async () => {
     const created = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body());
     const updated = await request(app.getHttpServer())
-      .patch(`/api/platform/studios/${created.body.id}`)
+      .patch(`/api/platform/organizations/${created.body.id}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ owner: { email: 'New@Example.com' } });
     expect(updated.status).toBe(200);
@@ -182,12 +185,12 @@ describe('studios', () => {
 
   it('hides a missing studio and a request without a token', async () => {
     const missing = await request(app.getHttpServer())
-      .get('/api/platform/studios/00000000-0000-4000-8000-000000000000')
+      .get('/api/platform/organizations/00000000-0000-4000-8000-000000000000')
       .set('Authorization', `Bearer ${token}`);
     expect(missing.status).toBe(404);
 
     const closed = await request(app.getHttpServer()).get(
-      '/api/platform/studios',
+      '/api/platform/organizations',
     );
     expect(closed.status).toBe(401);
   });
@@ -195,7 +198,7 @@ describe('studios', () => {
   describe('status and log in as studio', () => {
     async function createStudio() {
       const res = await request(app.getHttpServer())
-        .post('/api/platform/studios')
+        .post('/api/platform/organizations')
         .set('Authorization', `Bearer ${token}`)
         .send(body());
       return res.body.id as string;
@@ -203,7 +206,7 @@ describe('studios', () => {
 
     function post(path: string) {
       return request(app.getHttpServer())
-        .post(`/api/platform/studios/${path}`)
+        .post(`/api/platform/organizations/${path}`)
         .set('Authorization', `Bearer ${token}`);
     }
 
@@ -217,11 +220,11 @@ describe('studios', () => {
       expect(off.body.owner).toEqual({ email: 'owner@example.com' });
 
       const active = await request(app.getHttpServer())
-        .get('/api/platform/studios')
+        .get('/api/platform/organizations')
         .set('Authorization', `Bearer ${token}`);
       expect(active.body.items).toHaveLength(0);
       const deactivated = await request(app.getHttpServer())
-        .get('/api/platform/studios?status=deactivated')
+        .get('/api/platform/organizations?status=deactivated')
         .set('Authorization', `Bearer ${token}`);
       expect(deactivated.body.items).toHaveLength(1);
 
@@ -256,7 +259,7 @@ describe('studios', () => {
         const malformed = await post(`not-an-id/${action}`);
         expect(malformed.status).toBe(404);
         const closed = await request(app.getHttpServer()).post(
-          `/api/platform/studios/00000000-0000-4000-8000-000000000000/${action}`,
+          `/api/platform/organizations/00000000-0000-4000-8000-000000000000/${action}`,
         );
         expect(closed.status).toBe(401);
       }
@@ -275,18 +278,18 @@ describe('studios', () => {
       const pool = ownerPool();
       const rows = await pool.query<{
         code_hash: string;
-        studio_id: string;
+        organization_id: string;
         used_at: Date | null;
         ttl: number;
       }>(
-        `select code_hash, studio_id, used_at,
+        `select code_hash, organization_id, used_at,
                 extract(epoch from (expires_at - created_at))::int as ttl
            from handoff_code`,
       );
       await pool.end();
       expect(rows.rows).toHaveLength(2);
       for (const row of rows.rows) {
-        expect(row.studio_id).toBe(id);
+        expect(row.organization_id).toBe(id);
         expect(row.used_at).toBeNull();
         expect(row.ttl).toBe(60);
         expect([first.body.code, second.body.code]).not.toContain(
@@ -329,11 +332,11 @@ describe('studios', () => {
 
   it('revokes the previous owner sessions, including log-in-as-studio, only in this studio', async () => {
     const created = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body());
     const other = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ name: 'Other', subdomain: 'other' }));
     const id = created.body.id as string;
@@ -350,7 +353,7 @@ describe('studios', () => {
     );
 
     const updated = await request(app.getHttpServer())
-      .patch(`/api/platform/studios/${id}`)
+      .patch(`/api/platform/organizations/${id}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ owner: { email: 'next@example.com' } });
     expect(updated.status).toBe(200);
@@ -362,19 +365,19 @@ describe('studios', () => {
 
   it('rejects an owner change to a current staff e-mail and leaves the owner', async () => {
     const created = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body());
     const id = created.body.id as string;
     const pool = ownerPool();
     await pool.query(
-      `insert into studio_staff (studio_id, email, role) values ($1, 'staff@example.com', 'accountant')`,
+      `insert into organization_staff (organization_id, email, role) values ($1, 'staff@example.com', 'accountant')`,
       [id],
     );
     await pool.end();
 
     const updated = await request(app.getHttpServer())
-      .patch(`/api/platform/studios/${id}`)
+      .patch(`/api/platform/organizations/${id}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ owner: { email: 'Staff@Example.com' } });
     expect(updated.status).toBe(409);
@@ -382,33 +385,89 @@ describe('studios', () => {
     expect(updated.body.field).toBe('owner.email');
 
     const still = await request(app.getHttpServer())
-      .get(`/api/platform/studios/${id}`)
+      .get(`/api/platform/organizations/${id}`)
       .set('Authorization', `Bearer ${token}`);
     expect(still.body.owner).toEqual({ email: 'owner@example.com' });
   });
 
   it('allows an e-mail that is staff of another studio to become the owner', async () => {
     const created = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body());
     const other = await request(app.getHttpServer())
-      .post('/api/platform/studios')
+      .post('/api/platform/organizations')
       .set('Authorization', `Bearer ${token}`)
       .send(body({ name: 'Other', subdomain: 'other' }));
     const pool = ownerPool();
     await pool.query(
-      `insert into studio_staff (studio_id, email, role) values ($1, 'staff@example.com', 'administrator')`,
+      `insert into organization_staff (organization_id, email, role) values ($1, 'staff@example.com', 'administrator')`,
       [other.body.id],
     );
     await pool.end();
 
     const updated = await request(app.getHttpServer())
-      .patch(`/api/platform/studios/${created.body.id}`)
+      .patch(`/api/platform/organizations/${created.body.id}`)
       .set('Authorization', `Bearer ${token}`)
       .send({ owner: { email: 'staff@example.com' } });
     expect(updated.status).toBe(200);
     expect(updated.body.owner).toEqual({ email: 'staff@example.com' });
+  });
+
+  it('copies the preset and blocks a section the organization turned off', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/api/platform/organizations')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body());
+    expect(created.status).toBe(201);
+    expect(created.body.preset).toEqual({
+      id: FITNESS_PRESET_ID,
+      name: 'Fitness Studio',
+    });
+    expect(created.body.sections).toEqual([
+      'schedule',
+      'catalogs',
+      'clients',
+      'subscriptions',
+      'accounting',
+      'organization-settings',
+      'staff',
+    ]);
+
+    const sessionId = await insertSession(created.body.id, 'owner@example.com');
+    const organizationToken = signAccessToken(
+      {
+        sub: 'owner@example.com',
+        sid: sessionId,
+        api: 'organization',
+        organizationId: created.body.id,
+      },
+      loadEnv().ACCESS_TOKEN_SECRET,
+    );
+    const halls = await request(app.getHttpServer())
+      .get('/api/organization/halls')
+      .set('Authorization', `Bearer ${organizationToken}`);
+    expect(halls.status).toBe(200);
+
+    const patched = await request(app.getHttpServer())
+      .patch(`/api/platform/organizations/${created.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        sections: ['staff', 'schedule', 'organization-settings'],
+      });
+    expect(patched.status).toBe(200);
+    expect(patched.body.preset.id).toBe(FITNESS_PRESET_ID);
+    expect(patched.body.sections).toEqual([
+      'schedule',
+      'organization-settings',
+      'staff',
+    ]);
+
+    const blocked = await request(app.getHttpServer())
+      .get('/api/organization/halls')
+      .set('Authorization', `Bearer ${organizationToken}`);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.code).toBe('FORBIDDEN');
   });
 });
 
@@ -424,16 +483,16 @@ async function adminId() {
 }
 
 async function insertSession(
-  studioId: string,
+  organizationId: string,
   email: string,
   impersonatedBy: string | null = null,
 ) {
   const pool = ownerPool();
   const rows = await pool.query<{ id: string }>(
-    `insert into studio_session (studio_id, email, expires_at, refresh_token_hash, impersonated_by)
+    `insert into organization_session (organization_id, email, expires_at, refresh_token_hash, impersonated_by)
      values ($1, $2, now() + interval '1 day', gen_random_uuid()::text, $3)
      returning id`,
-    [studioId, email, impersonatedBy],
+    [organizationId, email, impersonatedBy],
   );
   await pool.end();
   const id = rows.rows[0]?.id;
@@ -444,7 +503,7 @@ async function insertSession(
 async function revoked(sessionId: string) {
   const pool = ownerPool();
   const rows = await pool.query<{ revoked_at: Date | null }>(
-    `select revoked_at from studio_session where id = $1`,
+    `select revoked_at from organization_session where id = $1`,
     [sessionId],
   );
   await pool.end();
@@ -456,6 +515,7 @@ function body(over: Record<string, unknown> = {}) {
     name: 'Yoga Space',
     subdomain: 'yoga',
     owner: { email: 'owner@example.com' },
+    presetId: FITNESS_PRESET_ID,
     ...over,
   };
 }

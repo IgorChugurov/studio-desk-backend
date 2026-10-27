@@ -5,12 +5,13 @@ import { sha256, signAccessToken } from '../src/common/auth/tokens.js';
 import { loadEnv } from '../src/config/env.js';
 import { createTestApp } from './support/app.js';
 import { ownerPool } from './support/db.js';
+import { INSERT_ORGANIZATION } from './support/insert-organization.js';
 import { fixtureImports } from './support/fixtures.js';
 
 const ANNA = 'anna@example.com';
 const OLGA = 'olga@example.com';
 const NOBODY = 'nobody@example.com';
-const COOKIE = 'sd_studio_refresh';
+const COOKIE = 'sd_organization_refresh';
 
 describe('studio sign-in', () => {
   let app: INestApplication;
@@ -57,27 +58,28 @@ describe('studio sign-in', () => {
     ownerEmail: string,
     status = 'active',
   ) {
-    const rows = await sql<{ id: string }>(
-      `insert into studio (name, subdomain, owner_email, status)
-       values ($1, $2, $3, $4) returning id`,
-      [name, name.toLowerCase().replace(/\s+/g, '-'), ownerEmail, status],
-    );
+    const rows = await sql<{ id: string }>(INSERT_ORGANIZATION, [
+      name,
+      name.toLowerCase().replace(/\s+/g, '-'),
+      ownerEmail,
+      status,
+    ]);
     return rows[0]!.id;
   }
 
   async function addStaff(
-    studioId: string,
+    organizationId: string,
     email: string,
     role = 'administrator',
   ) {
     await sql(
-      'insert into studio_staff (studio_id, email, role) values ($1, $2, $3)',
-      [studioId, email, role],
+      'insert into organization_staff (organization_id, email, role) values ($1, $2, $3)',
+      [organizationId, email, role],
     );
   }
 
   async function requestCode(email: string) {
-    return http().post('/api/studio/auth/code').send({ email });
+    return http().post('/api/organization/auth/code').send({ email });
   }
 
   function latestCode() {
@@ -89,7 +91,7 @@ describe('studio sign-in', () => {
   async function signInRequest(email: string) {
     await requestCode(email);
     return http()
-      .post('/api/studio/auth/sign-in')
+      .post('/api/organization/auth/sign-in')
       .send({ email, code: latestCode() });
   }
 
@@ -105,7 +107,7 @@ describe('studio sign-in', () => {
 
   function withBearer(token: string) {
     return http()
-      .get('/api/studio/fixture/closed')
+      .get('/api/organization/fixture/closed')
       .set('Authorization', `Bearer ${token}`);
   }
 
@@ -141,7 +143,7 @@ describe('studio sign-in', () => {
       await requestCode(ANNA);
       await http().post('/api/platform/auth/code').send({ email: ANNA });
       const signed = await http()
-        .post('/api/studio/auth/sign-in')
+        .post('/api/organization/auth/sign-in')
         .send({ email: ANNA, code: latestCode() });
       expect(signed.status).toBe(200);
     });
@@ -152,35 +154,36 @@ describe('studio sign-in', () => {
       const yoga = await createStudio('Yoga', ANNA);
       await requestCode(ANNA);
       const code = latestCode();
-      await sql(`update studio set status = 'deactivated' where id = $1`, [
-        yoga,
-      ]);
+      await sql(
+        `update organization set status = 'deactivated' where id = $1`,
+        [yoga],
+      );
 
       const rejected = await http()
-        .post('/api/studio/auth/sign-in')
+        .post('/api/organization/auth/sign-in')
         .send({ email: ANNA, code });
       expect(rejected.status).toBe(400);
       expect(rejected.body.code).toBe('INVALID_CODE');
 
       await requestCode(NOBODY);
       const unknown = await http()
-        .post('/api/studio/auth/sign-in')
+        .post('/api/organization/auth/sign-in')
         .send({ email: NOBODY, code: '000000' });
       expect(unknown.status).toBe(rejected.status);
       expect(unknown.body.code).toBe(rejected.body.code);
-      expect(await sql('select id from studio_session')).toEqual([]);
+      expect(await sql('select id from organization_session')).toEqual([]);
     });
 
     it('locks the code after five wrong attempts, also for an e-mail without a studio', async () => {
       await requestCode(NOBODY);
       for (let attempt = 0; attempt < 4; attempt += 1) {
         const res = await http()
-          .post('/api/studio/auth/sign-in')
+          .post('/api/organization/auth/sign-in')
           .send({ email: NOBODY, code: '000000' });
         expect(res.body.code).toBe('INVALID_CODE');
       }
       const last = await http()
-        .post('/api/studio/auth/sign-in')
+        .post('/api/organization/auth/sign-in')
         .send({ email: NOBODY, code: '000000' });
       expect(last.status).toBe(429);
       expect(last.body.code).toBe('TOO_MANY_ATTEMPTS');
@@ -190,10 +193,10 @@ describe('studio sign-in', () => {
       await createStudio('Yoga', ANNA);
       await requestCode(ANNA);
       await sql(
-        `update studio_sign_in_code set expires_at = now() - interval '10 minutes'`,
+        `update organization_sign_in_code set expires_at = now() - interval '10 minutes'`,
       );
       const res = await http()
-        .post('/api/studio/auth/sign-in')
+        .post('/api/organization/auth/sign-in')
         .send({ email: ANNA, code: latestCode() });
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('CODE_EXPIRED');
@@ -204,7 +207,7 @@ describe('studio sign-in', () => {
       await requestCode('ANNA@example.com');
       const code = latestCode();
       const signed = await http()
-        .post('/api/studio/auth/sign-in')
+        .post('/api/organization/auth/sign-in')
         .send({ email: 'Anna@Example.com', code });
 
       expect(signed.status).toBe(200);
@@ -212,16 +215,16 @@ describe('studio sign-in', () => {
         result: 'signed-in',
         accessTokenExpiresIn: 900,
         user: { email: ANNA },
-        studio: { id: yoga, name: 'Yoga' },
+        organization: { id: yoga, name: 'Yoga' },
       });
       expect(signed.body.refreshToken).toBeUndefined();
       expect(refreshCookie(signed)).toBeTruthy();
       expect(String(signed.headers['set-cookie'])).toContain(
-        'Path=/api/studio/auth',
+        'Path=/api/organization/auth',
       );
 
       const again = await http()
-        .post('/api/studio/auth/sign-in')
+        .post('/api/organization/auth/sign-in')
         .send({ email: ANNA, code });
       expect(again.body.code).toBe('INVALID_CODE');
     });
@@ -231,7 +234,7 @@ describe('studio sign-in', () => {
       await addStaff(yoga, OLGA, 'accountant');
       const signed = await signInRequest('olga@example.com');
       expect(signed.body.result).toBe('signed-in');
-      expect(signed.body.studio.id).toBe(yoga);
+      expect(signed.body.organization.id).toBe(yoga);
       expect(signed.body.user).toEqual({ email: OLGA });
     });
 
@@ -243,14 +246,14 @@ describe('studio sign-in', () => {
 
       const signed = await signInRequest(ANNA);
       expect(signed.status).toBe(200);
-      expect(signed.body.result).toBe('studio-selection');
+      expect(signed.body.result).toBe('organization-selection');
       expect(signed.body.selectionTicketExpiresIn).toBe(300);
       expect(
-        signed.body.studios.map((item: { name: string }) => item.name),
+        signed.body.organizations.map((item: { name: string }) => item.name),
       ).toEqual(['Pilates', 'Zen']);
       expect(signed.headers['set-cookie']).toBeUndefined();
       expect(signed.body.accessToken).toBeUndefined();
-      expect(await sql('select id from studio_session')).toEqual([]);
+      expect(await sql('select id from organization_session')).toEqual([]);
     });
   });
 
@@ -270,16 +273,19 @@ describe('studio sign-in', () => {
     it('exchanges the ticket for a session of the chosen studio, once', async () => {
       const { pilates, ticket } = await twoStudios();
       const chosen = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ selectionTicket: ticket, studioId: pilates });
+        .post('/api/organization/auth/select-organization')
+        .send({ selectionTicket: ticket, organizationId: pilates });
       expect(chosen.status).toBe(200);
-      expect(chosen.body.studio).toEqual({ id: pilates, name: 'Pilates' });
+      expect(chosen.body.organization).toEqual({
+        id: pilates,
+        name: 'Pilates',
+      });
       expect(refreshCookie(chosen)).toBeTruthy();
       expect((await withBearer(chosen.body.accessToken)).status).toBe(200);
 
       const reused = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ selectionTicket: ticket, studioId: pilates });
+        .post('/api/organization/auth/select-organization')
+        .send({ selectionTicket: ticket, organizationId: pilates });
       expect(reused.status).toBe(400);
       expect(reused.body.code).toBe('INVALID_SELECTION_TICKET');
     });
@@ -287,7 +293,7 @@ describe('studio sign-in', () => {
     it('replaces every earlier ticket of the person with the new one, and removes old tickets of others', async () => {
       const { zen, ticket: first } = await twoStudios();
       await sql(
-        `insert into studio_selection_ticket (token_hash, email, expires_at)
+        `insert into organization_selection_ticket (token_hash, email, expires_at)
          values ('stale', 'other@example.com', now() - interval '2 hours'),
                 ('fresh', 'other@example.com', now() + interval '1 minute')`,
       );
@@ -297,37 +303,37 @@ describe('studio sign-in', () => {
       expect(second).not.toBe(first);
 
       const rows = await sql<{ token_hash: string }>(
-        'select token_hash from studio_selection_ticket order by token_hash',
+        'select token_hash from organization_selection_ticket order by token_hash',
       );
       expect(rows.map((row) => row.token_hash)).toHaveLength(2);
       expect(rows.map((row) => row.token_hash)).toContain('fresh');
       expect(rows.map((row) => row.token_hash)).not.toContain('stale');
 
       const old = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ selectionTicket: first, studioId: zen });
+        .post('/api/organization/auth/select-organization')
+        .send({ selectionTicket: first, organizationId: zen });
       expect(old.status).toBe(400);
       expect(old.body.code).toBe('INVALID_SELECTION_TICKET');
       const current = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ selectionTicket: second, studioId: zen });
+        .post('/api/organization/auth/select-organization')
+        .send({ selectionTicket: second, organizationId: zen });
       expect(current.status).toBe(200);
     });
 
     it('rejects an expired or unknown ticket', async () => {
       const { zen, ticket } = await twoStudios();
       await sql(
-        `update studio_selection_ticket set expires_at = now() - interval '1 second'`,
+        `update organization_selection_ticket set expires_at = now() - interval '1 second'`,
       );
       const expired = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ selectionTicket: ticket, studioId: zen });
+        .post('/api/organization/auth/select-organization')
+        .send({ selectionTicket: ticket, organizationId: zen });
       expect(expired.status).toBe(400);
       expect(expired.body.code).toBe('INVALID_SELECTION_TICKET');
 
       const unknown = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ selectionTicket: 'nope', studioId: zen });
+        .post('/api/organization/auth/select-organization')
+        .send({ selectionTicket: 'nope', organizationId: zen });
       expect(unknown.body.code).toBe('INVALID_SELECTION_TICKET');
     });
 
@@ -335,34 +341,35 @@ describe('studio sign-in', () => {
       const { zen, pilates, ticket } = await twoStudios();
       const foreign = await createStudio('Foreign', 'stranger@example.com');
       const notLinked = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ selectionTicket: ticket, studioId: foreign });
+        .post('/api/organization/auth/select-organization')
+        .send({ selectionTicket: ticket, organizationId: foreign });
       expect(notLinked.status).toBe(404);
       expect(notLinked.body.code).toBe('NOT_FOUND');
 
-      await sql(`update studio set status = 'deactivated' where id = $1`, [
-        zen,
-      ]);
+      await sql(
+        `update organization set status = 'deactivated' where id = $1`,
+        [zen],
+      );
       const deactivated = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ selectionTicket: ticket, studioId: zen });
+        .post('/api/organization/auth/select-organization')
+        .send({ selectionTicket: ticket, organizationId: zen });
       expect(deactivated.status).toBe(404);
 
       const chosen = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ selectionTicket: ticket, studioId: pilates });
+        .post('/api/organization/auth/select-organization')
+        .send({ selectionTicket: ticket, organizationId: pilates });
       expect(chosen.status).toBe(200);
     });
 
     it('reports every format error of the body together', async () => {
       const res = await http()
-        .post('/api/studio/auth/select-studio')
-        .send({ studioId: 'not-a-uuid' });
+        .post('/api/organization/auth/select-organization')
+        .send({ organizationId: 'not-a-uuid' });
       expect(res.status).toBe(400);
       expect(res.body.code).toBe('VALIDATION_ERROR');
       expect(
         res.body.errors.map((item: { field: string }) => item.field).sort(),
-      ).toEqual(['selectionTicket', 'studioId']);
+      ).toEqual(['organizationId', 'selectionTicket']);
     });
   });
 
@@ -372,10 +379,12 @@ describe('studio sign-in', () => {
       const pilates = await createStudio('Pilates', 'other@example.com');
       await addStaff(pilates, ANNA);
       const signed = await signInRequest(ANNA);
-      const chosen = await http().post('/api/studio/auth/select-studio').send({
-        selectionTicket: signed.body.selectionTicket,
-        studioId: zen,
-      });
+      const chosen = await http()
+        .post('/api/organization/auth/select-organization')
+        .send({
+          selectionTicket: signed.body.selectionTicket,
+          organizationId: zen,
+        });
       return {
         zen,
         pilates,
@@ -384,11 +393,11 @@ describe('studio sign-in', () => {
       };
     }
 
-    function switchTo(access: string, studioId: string, header = true) {
+    function switchTo(access: string, organizationId: string, header = true) {
       const call = http()
-        .post('/api/studio/auth/switch-studio')
+        .post('/api/organization/auth/switch-organization')
         .set('Authorization', `Bearer ${access}`)
-        .send({ studioId });
+        .send({ organizationId });
       return header ? call.set('X-Requested-With', 'fetch') : call;
     }
 
@@ -396,13 +405,16 @@ describe('studio sign-in', () => {
       const { pilates, access, refresh } = await signedInToTwo();
       const switched = await switchTo(access, pilates);
       expect(switched.status).toBe(200);
-      expect(switched.body.studio).toEqual({ id: pilates, name: 'Pilates' });
+      expect(switched.body.organization).toEqual({
+        id: pilates,
+        name: 'Pilates',
+      });
       expect(refreshCookie(switched)).not.toBe(refresh);
 
       expect((await withBearer(access)).status).toBe(401);
       expect((await withBearer(switched.body.accessToken)).status).toBe(200);
       const sessions = await sql<{ revoked: boolean }>(
-        'select revoked_at is not null as revoked from studio_session order by created_at',
+        'select revoked_at is not null as revoked from organization_session order by created_at',
       );
       expect(sessions.map((item) => item.revoked)).toEqual([true, false]);
     });
@@ -412,12 +424,14 @@ describe('studio sign-in', () => {
       const [admin] = await sql<{ id: string }>(
         `insert into platform_administrator (email) values ('admin@example.com') returning id`,
       );
-      await sql('update studio_session set impersonated_by = $1', [admin!.id]);
+      await sql('update organization_session set impersonated_by = $1', [
+        admin!.id,
+      ]);
 
       const switched = await switchTo(access, pilates);
       expect(switched.status).toBe(200);
       const marks = await sql<{ impersonated_by: string | null }>(
-        'select impersonated_by from studio_session order by created_at',
+        'select impersonated_by from organization_session order by created_at',
       );
       expect(marks.map((item) => item.impersonated_by)).toEqual([
         admin!.id,
@@ -432,9 +446,10 @@ describe('studio sign-in', () => {
       expect(notLinked.status).toBe(404);
       expect(notLinked.body.code).toBe('NOT_FOUND');
 
-      await sql(`update studio set status = 'deactivated' where id = $1`, [
-        pilates,
-      ]);
+      await sql(
+        `update organization set status = 'deactivated' where id = $1`,
+        [pilates],
+      );
       expect((await switchTo(access, pilates)).status).toBe(404);
       expect((await withBearer(access)).status).toBe(200);
     });
@@ -443,9 +458,9 @@ describe('studio sign-in', () => {
       const { pilates, access } = await signedInToTwo();
       expect((await switchTo(access, pilates, false)).status).toBe(403);
       const anonymous = await http()
-        .post('/api/studio/auth/switch-studio')
+        .post('/api/organization/auth/switch-organization')
         .set('X-Requested-With', 'fetch')
-        .send({ studioId: pilates });
+        .send({ organizationId: pilates });
       expect(anonymous.status).toBe(401);
     });
   });
@@ -463,7 +478,7 @@ describe('studio sign-in', () => {
 
     function refreshWith(value: string) {
       return http()
-        .post('/api/studio/auth/refresh')
+        .post('/api/organization/auth/refresh')
         .set('X-Requested-With', 'fetch')
         .set('Cookie', `${COOKIE}=${value}`);
     }
@@ -473,7 +488,7 @@ describe('studio sign-in', () => {
       expect((await withBearer(access)).status).toBe(200);
 
       const out = await http()
-        .post('/api/studio/auth/sign-out')
+        .post('/api/organization/auth/sign-out')
         .set('X-Requested-With', 'fetch')
         .set('Cookie', `${COOKIE}=${refresh}`);
       expect(out.status).toBe(204);
@@ -486,7 +501,9 @@ describe('studio sign-in', () => {
       const other = await createStudio('Other', 'stranger@example.com');
       expect((await withBearer(access)).status).toBe(200);
 
-      await sql('update studio_session set studio_id = $1', [other]);
+      await sql('update organization_session set organization_id = $1', [
+        other,
+      ]);
       expect((await withBearer(access)).status).toBe(401);
     });
 
@@ -512,14 +529,14 @@ describe('studio sign-in', () => {
         Buffer.from(access.split('.')[1]!, 'base64url').toString('utf8'),
       ) as { sub: string; sid: string };
       const withoutStudio = signAccessToken(
-        { sub: claims.sub, sid: claims.sid, api: 'studio' },
+        { sub: claims.sub, sid: claims.sid, api: 'organization' },
         secret,
       );
       expect((await withBearer(withoutStudio)).status).toBe(401);
       expect((await withBearer(`${access}x`)).status).toBe(401);
 
       await sql(
-        `update studio_session set expires_at = now() - interval '1 second'`,
+        `update organization_session set expires_at = now() - interval '1 second'`,
       );
       expect((await withBearer(access)).status).toBe(401);
     });
@@ -529,7 +546,7 @@ describe('studio sign-in', () => {
       const first = await refreshWith(refresh);
       expect(first.status).toBe(200);
       expect(first.body.user).toEqual({ email: ANNA });
-      expect(first.body.studio.name).toBe('Yoga');
+      expect(first.body.organization.name).toBe('Yoga');
       expect(refreshCookie(first)).not.toBe(refresh);
 
       const withinWindow = await refreshWith(refresh);
@@ -540,7 +557,7 @@ describe('studio sign-in', () => {
       const { access, refresh } = await signedIn();
       expect((await refreshWith(refresh)).status).toBe(200);
       await sql(
-        `update studio_session set rotated_at = now() - interval '11 seconds'`,
+        `update organization_session set rotated_at = now() - interval '11 seconds'`,
       );
 
       const reused = await refreshWith(refresh);
@@ -550,11 +567,11 @@ describe('studio sign-in', () => {
     });
 
     it('requires the requested-with header and the cookie, and tells apart a missing and an unknown cookie', async () => {
-      const missingHeader = await http().post('/api/studio/auth/refresh');
+      const missingHeader = await http().post('/api/organization/auth/refresh');
       expect(missingHeader.status).toBe(403);
 
       const missingCookie = await http()
-        .post('/api/studio/auth/refresh')
+        .post('/api/organization/auth/refresh')
         .set('X-Requested-With', 'fetch');
       expect(missingCookie.status).toBe(401);
       expect(missingCookie.body.code).toBe('UNAUTHORIZED');
@@ -566,17 +583,19 @@ describe('studio sign-in', () => {
 
     it('answers 204 to sign-out without a cookie, and requires the header', async () => {
       const withoutCookie = await http()
-        .post('/api/studio/auth/sign-out')
+        .post('/api/organization/auth/sign-out')
         .set('X-Requested-With', 'fetch');
       expect(withoutCookie.status).toBe(204);
-      const withoutHeader = await http().post('/api/studio/auth/sign-out');
+      const withoutHeader = await http().post(
+        '/api/organization/auth/sign-out',
+      );
       expect(withoutHeader.status).toBe(403);
     });
   });
 
   describe('log in as studio', () => {
     async function handoff(
-      studioId: string,
+      organizationId: string,
       code: string,
       when = "now() + interval '60 seconds'",
     ) {
@@ -584,16 +603,16 @@ describe('studio sign-in', () => {
         `insert into platform_administrator (email) values ('admin@example.com') returning id`,
       );
       await sql(
-        `insert into handoff_code (code_hash, studio_id, platform_administrator_id, expires_at)
+        `insert into handoff_code (code_hash, organization_id, platform_administrator_id, expires_at)
          values ($1, $2, $3, ${when})`,
-        [sha256(code), studioId, admin[0]!.id],
+        [sha256(code), organizationId, admin[0]!.id],
       );
       return admin[0]!.id;
     }
 
     function exchange(code: string, header = true) {
       const req = http()
-        .post('/api/studio/auth/impersonation/exchange')
+        .post('/api/organization/auth/impersonation/exchange')
         .send({ code });
       return header ? req.set('X-Requested-With', 'fetch') : req;
     }
@@ -605,14 +624,14 @@ describe('studio sign-in', () => {
       const opened = await exchange('fresh-code');
       expect(opened.status).toBe(200);
       expect(opened.body.user).toEqual({ email: ANNA });
-      expect(opened.body.studio).toEqual({ id: yoga, name: 'Yoga' });
+      expect(opened.body.organization).toEqual({ id: yoga, name: 'Yoga' });
       expect(refreshCookie(opened)).toBeTruthy();
       expect((await withBearer(opened.body.accessToken as string)).status).toBe(
         200,
       );
 
       const marked = await sql<{ impersonated_by: string }>(
-        `select impersonated_by from studio_session where studio_id = $1`,
+        `select impersonated_by from organization_session where organization_id = $1`,
         [yoga],
       );
       expect(marked[0]?.impersonated_by).toBe(adminId);

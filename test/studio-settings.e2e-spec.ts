@@ -4,6 +4,7 @@ import { signAccessToken } from '../src/common/auth/tokens.js';
 import { loadEnv } from '../src/config/env.js';
 import { createTestApp } from './support/app.js';
 import { ownerPool } from './support/db.js';
+import { INSERT_ORGANIZATION } from './support/insert-organization.js';
 
 const OWNER = 'owner@example.com';
 const STAFF = 'staff@example.com';
@@ -34,25 +35,26 @@ describe('studio settings', () => {
     }
   }
 
-  async function sessionFor(studioId: string, email: string) {
+  async function sessionFor(organizationId: string, email: string) {
     const rows = await sql<{ id: string }>(
-      `insert into studio_session (studio_id, email, expires_at, refresh_token_hash)
+      `insert into organization_session (organization_id, email, expires_at, refresh_token_hash)
        values ($1, $2, now() + interval '1 day', gen_random_uuid()::text)
        returning id`,
-      [studioId, email],
+      [organizationId, email],
     );
     return signAccessToken(
-      { sub: email, sid: rows[0]!.id, api: 'studio', studioId },
+      { sub: email, sid: rows[0]!.id, api: 'organization', organizationId },
       loadEnv().ACCESS_TOKEN_SECRET,
     );
   }
 
   async function createStudio() {
-    const rows = await sql<{ id: string }>(
-      `insert into studio (name, subdomain, owner_email)
-       values ('Yoga Space', 'yoga', $1) returning id`,
-      [OWNER],
-    );
+    const rows = await sql<{ id: string }>(INSERT_ORGANIZATION, [
+      'Yoga Space',
+      'yoga',
+      OWNER,
+      'active',
+    ]);
     return rows[0]!.id;
   }
 
@@ -69,27 +71,27 @@ describe('studio settings', () => {
     const id = await createStudio();
     const owner = authed(await sessionFor(id, OWNER));
 
-    const settings = await owner.get('/api/studio/settings');
+    const settings = await owner.get('/api/organization/settings');
     expect(settings.status).toBe(200);
-    expect(settings.body).toEqual({
+    expect(settings.body).toMatchObject({
       language: 'en',
       country: 'SK',
       currency: 'EUR',
       timeZone: 'Europe/Bratislava',
     });
 
-    const options = await owner.get('/api/studio/settings/options');
+    const options = await owner.get('/api/organization/settings/options');
     expect(options.status).toBe(200);
     expect(options.body.countries).toContain('SK');
     expect(options.body.currencies).toEqual(['EUR', 'UAH', 'USD']);
     expect(options.body.timeZones).toContain('Europe/Bratislava');
 
-    const saved = await owner.patch('/api/studio/settings', {
+    const saved = await owner.patch('/api/organization/settings', {
       language: 'uk',
       currency: 'UAH',
     });
     expect(saved.status).toBe(200);
-    expect(saved.body).toEqual({
+    expect(saved.body).toMatchObject({
       language: 'uk',
       country: 'SK',
       currency: 'UAH',
@@ -101,7 +103,7 @@ describe('studio settings', () => {
     const id = await createStudio();
     const owner = authed(await sessionFor(id, OWNER));
 
-    const blank = await owner.patch('/api/studio/settings', {
+    const blank = await owner.patch('/api/organization/settings', {
       language: '  ',
       country: null,
     });
@@ -112,7 +114,7 @@ describe('studio settings', () => {
       expect.objectContaining({ code: 'REQUIRED', field: 'country' }),
     ]);
 
-    const wrong = await owner.patch('/api/studio/settings', {
+    const wrong = await owner.patch('/api/organization/settings', {
       language: 'de',
       country: 'sk',
       timeZone: 'europe/bratislava',
@@ -127,7 +129,7 @@ describe('studio settings', () => {
       ),
     ).toBe(true);
 
-    const currency = await owner.patch('/api/studio/settings', {
+    const currency = await owner.patch('/api/organization/settings', {
       currency: 'eur',
     });
     expect(currency.status).toBe(400);
@@ -135,7 +137,7 @@ describe('studio settings', () => {
       expect.objectContaining({ code: 'INVALID_VALUE', field: 'currency' }),
     ]);
 
-    const still = await owner.get('/api/studio/settings');
+    const still = await owner.get('/api/organization/settings');
     expect(still.body.language).toBe('en');
     expect(still.body.currency).toBe('EUR');
   });
@@ -143,24 +145,91 @@ describe('studio settings', () => {
   it('hides settings from staff and from a request without a token', async () => {
     const id = await createStudio();
     await sql(
-      `insert into studio_staff (studio_id, email, role) values ($1, $2, 'administrator')`,
+      `insert into organization_staff (organization_id, email, role) values ($1, $2, 'administrator')`,
       [id, STAFF],
     );
     const staff = authed(await sessionFor(id, STAFF));
     for (const path of [
-      '/api/studio/settings',
-      '/api/studio/settings/options',
+      '/api/organization/settings',
+      '/api/organization/settings/options',
     ]) {
       const res = await staff.get(path);
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('FORBIDDEN');
     }
-    const patched = await staff.patch('/api/studio/settings', {
+    const patched = await staff.patch('/api/organization/settings', {
       language: 'sk',
     });
     expect(patched.status).toBe(403);
 
-    const closed = await http().get('/api/studio/settings');
+    const closed = await http().get('/api/organization/settings');
     expect(closed.status).toBe(401);
+  });
+
+  it('reads and updates the copied catalog, schedule, and billing config', async () => {
+    const id = await createStudio();
+    const owner = authed(await sessionFor(id, OWNER));
+    const settings = await owner.get('/api/organization/settings');
+    expect(settings.status).toBe(200);
+    expect(settings.body.catalogConfig.resourceTypes).toHaveLength(3);
+    expect(settings.body.scheduleConfig).toEqual({
+      audienceEnabled: true,
+      formatEnabled: true,
+      statuses: ['planned', 'cancelled'],
+    });
+    expect(settings.body.billingConfig).toEqual({
+      settlementMode: 'subscription',
+    });
+
+    const saved = await owner.patch('/api/organization/settings', {
+      scheduleConfig: {
+        audienceEnabled: false,
+        formatEnabled: true,
+        statuses: ['cancelled', 'planned', 'confirmed'],
+      },
+      billingConfig: { settlementMode: 'direct_check' },
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.body.scheduleConfig).toEqual({
+      audienceEnabled: false,
+      formatEnabled: true,
+      statuses: ['planned', 'confirmed', 'cancelled'],
+    });
+    expect(saved.body.billingConfig).toEqual({
+      settlementMode: 'direct_check',
+    });
+
+    const types = settings.body.catalogConfig.resourceTypes as Array<{
+      id: string;
+      role: string;
+    }>;
+    const replacedPlace = await owner.patch('/api/organization/settings', {
+      catalogConfig: {
+        resourceTypes: types.map((type) =>
+          type.role === 'place' ? { ...type, id: undefined } : type,
+        ),
+      },
+    });
+    expect(replacedPlace.status).toBe(200);
+
+    await sql(
+      `insert into hall (organization_id, name, address, time_zone)
+       values ($1, 'Main', 'Street 1', 'Europe/Bratislava')`,
+      [id],
+    );
+    const current = await owner.get('/api/organization/settings');
+    const inUse = await owner.patch('/api/organization/settings', {
+      catalogConfig: {
+        resourceTypes: (
+          current.body.catalogConfig.resourceTypes as Array<{
+            role: string;
+          }>
+        ).map((type) =>
+          type.role === 'place' ? { ...type, id: undefined } : type,
+        ),
+      },
+    });
+    expect(inUse.status).toBe(409);
+    expect(inUse.body.code).toBe('RESOURCE_TYPE_IN_USE');
   });
 });

@@ -85,7 +85,7 @@ describe('error format', () => {
   });
 
   it('unauthorized: UNAUTHORIZED in the same format', async () => {
-    const res = await http().get('/api/studio/fixture/closed');
+    const res = await http().get('/api/organization/fixture/closed');
     expect(res.body).toEqual({
       statusCode: 401,
       code: 'UNAUTHORIZED',

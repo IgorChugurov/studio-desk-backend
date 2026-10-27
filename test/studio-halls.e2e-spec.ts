@@ -4,6 +4,7 @@ import { signAccessToken } from '../src/common/auth/tokens.js';
 import { loadEnv } from '../src/config/env.js';
 import { createTestApp } from './support/app.js';
 import { ownerPool } from './support/db.js';
+import { INSERT_ORGANIZATION } from './support/insert-organization.js';
 
 const OWNER = 'owner@example.com';
 
@@ -35,32 +36,34 @@ describe('studio halls', () => {
 
   async function createStudio(name: string, owner = OWNER) {
     const subdomain = name.toLowerCase().replace(/\s+/g, '-');
-    const rows = await sql<{ id: string }>(
-      `insert into studio (name, subdomain, owner_email) values ($1, $2, $3) returning id`,
-      [name, subdomain, owner],
-    );
+    const rows = await sql<{ id: string }>(INSERT_ORGANIZATION, [
+      name,
+      subdomain,
+      owner,
+      'active',
+    ]);
     return rows[0]!.id;
   }
 
-  async function sessionFor(studioId: string, email: string) {
+  async function sessionFor(organizationId: string, email: string) {
     const rows = await sql<{ id: string }>(
-      `insert into studio_session (studio_id, email, expires_at, refresh_token_hash)
+      `insert into organization_session (organization_id, email, expires_at, refresh_token_hash)
        values ($1, $2, now() + interval '1 day', gen_random_uuid()::text)
        returning id`,
-      [studioId, email],
+      [organizationId, email],
     );
     return signAccessToken(
-      { sub: email, sid: rows[0]!.id, api: 'studio', studioId },
+      { sub: email, sid: rows[0]!.id, api: 'organization', organizationId },
       loadEnv().ACCESS_TOKEN_SECRET,
     );
   }
 
-  async function staff(studioId: string, email: string, role: string) {
+  async function staff(organizationId: string, email: string, role: string) {
     await sql(
-      `insert into studio_staff (studio_id, email, role) values ($1, $2, $3)`,
-      [studioId, email, role],
+      `insert into organization_staff (organization_id, email, role) values ($1, $2, $3)`,
+      [organizationId, email, role],
     );
-    return sessionFor(studioId, email);
+    return sessionFor(organizationId, email);
   }
 
   function authed(token: string) {
@@ -78,7 +81,7 @@ describe('studio halls', () => {
     const yoga = await createStudio('Yoga');
     const owner = authed(await sessionFor(yoga, OWNER));
 
-    const created = await owner.post('/api/studio/halls', {
+    const created = await owner.post('/api/organization/halls', {
       name: '  Main hall  ',
       address: ' Hlavná 1 ',
       videoLink: '  ',
@@ -97,13 +100,13 @@ describe('studio halls', () => {
     );
     expect(stored[0]!.count).toBe(0);
 
-    const sameName = await owner.post('/api/studio/halls', {
+    const sameName = await owner.post('/api/organization/halls', {
       name: 'Main hall',
       address: 'Other street',
     });
     expect(sameName.status).toBe(201);
 
-    const list = await owner.get('/api/studio/halls?search=MAIN');
+    const list = await owner.get('/api/organization/halls?search=MAIN');
     expect(list.status).toBe(200);
     expect(list.body.items.map((item: { name: string }) => item.name)).toEqual([
       'Main hall',
@@ -111,41 +114,52 @@ describe('studio halls', () => {
     ]);
     expect(list.body.items[0].images).toEqual([]);
 
-    const read = await owner.get(`/api/studio/halls/${created.body.id}`);
+    const read = await owner.get(`/api/organization/halls/${created.body.id}`);
     expect(read.status).toBe(200);
     expect(read.body.address).toBe('Hlavná 1');
 
-    const updated = await owner.patch(`/api/studio/halls/${created.body.id}`, {
-      videoLink: 'https://youtu.be/abc',
-    });
+    const updated = await owner.patch(
+      `/api/organization/halls/${created.body.id}`,
+      {
+        videoLink: 'https://youtu.be/abc',
+      },
+    );
     expect(updated.status).toBe(200);
     expect(updated.body.name).toBe('Main hall');
     expect(updated.body.videoLink).toBe('https://youtu.be/abc');
 
-    const cleared = await owner.patch(`/api/studio/halls/${created.body.id}`, {
-      videoLink: '',
-    });
+    const cleared = await owner.patch(
+      `/api/organization/halls/${created.body.id}`,
+      {
+        videoLink: '',
+      },
+    );
     expect(cleared.body.videoLink).toBeNull();
 
     const described = await owner.patch(
-      `/api/studio/halls/${created.body.id}`,
+      `/api/organization/halls/${created.body.id}`,
       {
         description: '  A quiet room  ',
       },
     );
     expect(described.body.description).toBe('A quiet room');
-    const byDescription = await owner.get('/api/studio/halls?search=quiet');
+    const byDescription = await owner.get(
+      '/api/organization/halls?search=quiet',
+    );
     expect(byDescription.body.items).toEqual([]);
-    const wiped = await owner.patch(`/api/studio/halls/${created.body.id}`, {
-      description: ' ',
-    });
+    const wiped = await owner.patch(
+      `/api/organization/halls/${created.body.id}`,
+      {
+        description: ' ',
+      },
+    );
     expect(wiped.body.description).toBeNull();
   });
 
   it('returns images sorted by index and does not change them when the name changes', async () => {
     const yoga = await createStudio('Yoga');
     const owner = authed(await sessionFor(yoga, OWNER));
-    const created = await owner.post('/api/studio/halls', {
+    const created = await owner.post('/api/organization/halls', {
       name: 'Main hall',
       address: 'Hlavná 1',
     });
@@ -156,7 +170,7 @@ describe('studio halls', () => {
       [hallId, `/files/halls/${hallId}/a.jpg`, `/files/halls/${hallId}/b.mp4`],
     );
 
-    const read = await owner.get(`/api/studio/halls/${created.body.id}`);
+    const read = await owner.get(`/api/organization/halls/${created.body.id}`);
     expect(
       read.body.images.map((file: { index: number; kind: string }) => ({
         index: file.index,
@@ -168,9 +182,12 @@ describe('studio halls', () => {
     ]);
     expect(read.body.images[0].url).toBe(`/files/halls/${hallId}/a.jpg`);
 
-    const updated = await owner.patch(`/api/studio/halls/${created.body.id}`, {
-      name: 'Renamed',
-    });
+    const updated = await owner.patch(
+      `/api/organization/halls/${created.body.id}`,
+      {
+        name: 'Renamed',
+      },
+    );
     expect(
       updated.body.images.map((file: { index: number }) => file.index),
     ).toEqual([0, 1]);
@@ -179,7 +196,7 @@ describe('studio halls', () => {
   it('refuses an empty name, an empty address, and a link that is not YouTube or Vimeo', async () => {
     const yoga = await createStudio('Yoga');
     const owner = authed(await sessionFor(yoga, OWNER));
-    const res = await owner.post('/api/studio/halls', {
+    const res = await owner.post('/api/organization/halls', {
       name: ' ',
       address: '',
       videoLink: 'https://example.com/video',
@@ -197,7 +214,7 @@ describe('studio halls', () => {
     const yoga = await createStudio('Yoga');
     const other = await createStudio('Other');
     const owner = authed(await sessionFor(yoga, OWNER));
-    const created = await owner.post('/api/studio/halls', {
+    const created = await owner.post('/api/organization/halls', {
       name: 'Main hall',
       address: 'Hlavná 1',
     });
@@ -209,45 +226,45 @@ describe('studio halls', () => {
     );
     const outsider = authed(await sessionFor(other, OWNER));
 
-    expect((await accountant.get('/api/studio/halls')).status).toBe(403);
+    expect((await accountant.get('/api/organization/halls')).status).toBe(403);
     expect(
       (
-        await accountant.post('/api/studio/halls', {
+        await accountant.post('/api/organization/halls', {
           name: 'Hidden',
           address: 'Street',
         })
       ).status,
     ).toBe(403);
     expect(
-      (await outsider.get(`/api/studio/halls/${created.body.id}`)).status,
+      (await outsider.get(`/api/organization/halls/${created.body.id}`)).status,
     ).toBe(404);
     expect(
       (
-        await outsider.patch(`/api/studio/halls/${created.body.id}`, {
+        await outsider.patch(`/api/organization/halls/${created.body.id}`, {
           name: 'Stolen',
         })
       ).status,
     ).toBe(404);
 
-    const allowed = await admin.get('/api/studio/halls');
+    const allowed = await admin.get('/api/organization/halls');
     expect(allowed.status).toBe(200);
     expect(allowed.body.items).toHaveLength(1);
 
-    const closed = await http().get('/api/studio/halls');
+    const closed = await http().get('/api/organization/halls');
     expect(closed.status).toBe(401);
   });
 
   it('uploads, reindexes, reorders, and serves file bytes', async () => {
     const yoga = await createStudio('Yoga');
     const token = await sessionFor(yoga, OWNER);
-    const created = await authed(token).post('/api/studio/halls', {
+    const created = await authed(token).post('/api/organization/halls', {
       name: 'Main hall',
       address: 'Hlavná 1',
     });
     const hallId = created.body.id as string;
 
     const uploaded = await http()
-      .post(`/api/studio/halls/${hallId}/files`)
+      .post(`/api/organization/halls/${hallId}/files`)
       .set('Authorization', `Bearer ${token}`)
       .attach('files', jpeg, { filename: 'a.jpg', contentType: 'text/plain' })
       .attach('files', png, { filename: 'b.png', contentType: 'image/png' })
@@ -268,7 +285,7 @@ describe('studio halls', () => {
     ]);
 
     const again = await http()
-      .post(`/api/studio/halls/${hallId}/files`)
+      .post(`/api/organization/halls/${hallId}/files`)
       .set('Authorization', `Bearer ${token}`)
       .attach('files', gif, { filename: 'd.gif', contentType: 'image/gif' });
     expect(
@@ -277,7 +294,7 @@ describe('studio halls', () => {
 
     const middle = uploaded.body.images[1].id as string;
     const removed = await http()
-      .delete(`/api/studio/halls/${hallId}/files/${middle}`)
+      .delete(`/api/organization/halls/${hallId}/files/${middle}`)
       .set('Authorization', `Bearer ${token}`);
     expect(removed.status).toBe(200);
     expect(
@@ -288,7 +305,7 @@ describe('studio halls', () => {
       (file: { id: string }) => file.id,
     ) as string[];
     const reordered = await http()
-      .put(`/api/studio/halls/${hallId}/files/order`)
+      .put(`/api/organization/halls/${hallId}/files/order`)
       .set('Authorization', `Bearer ${token}`)
       .send({ fileIds: [ids[2], ids[0], ids[1]] });
     expect(reordered.status).toBe(200);
@@ -296,9 +313,12 @@ describe('studio halls', () => {
       reordered.body.images.map((file: { id: string }) => file.id),
     ).toEqual([ids[2], ids[0], ids[1]]);
 
-    const renamed = await authed(token).patch(`/api/studio/halls/${hallId}`, {
-      name: 'Renamed',
-    });
+    const renamed = await authed(token).patch(
+      `/api/organization/halls/${hallId}`,
+      {
+        name: 'Renamed',
+      },
+    );
     expect(
       renamed.body.images.map((file: { index: number }) => file.index),
     ).toEqual([0, 1, 2]);
@@ -323,13 +343,13 @@ describe('studio halls', () => {
   it('stores nothing when one file in the upload is rejected', async () => {
     const yoga = await createStudio('Yoga');
     const token = await sessionFor(yoga, OWNER);
-    const created = await authed(token).post('/api/studio/halls', {
+    const created = await authed(token).post('/api/organization/halls', {
       name: 'Main hall',
       address: 'Hlavná 1',
     });
     const hallId = created.body.id as string;
     const rejected = await http()
-      .post(`/api/studio/halls/${hallId}/files`)
+      .post(`/api/organization/halls/${hallId}/files`)
       .set('Authorization', `Bearer ${token}`)
       .attach('files', jpeg, 'a.jpg')
       .attach('files', Buffer.from('hello'), 'note.txt');
@@ -344,7 +364,7 @@ describe('studio halls', () => {
     expect(stored[0]!.count).toBe(0);
 
     const empty = await http()
-      .post(`/api/studio/halls/${hallId}/files`)
+      .post(`/api/organization/halls/${hallId}/files`)
       .set('Authorization', `Bearer ${token}`)
       .attach('files', Buffer.alloc(0), 'empty.jpg');
     expect(empty.status).toBe(400);
@@ -355,12 +375,12 @@ describe('studio halls', () => {
     const yoga = await createStudio('Yoga');
     const other = await createStudio('Other');
     const token = await sessionFor(yoga, OWNER);
-    const created = await authed(token).post('/api/studio/halls', {
+    const created = await authed(token).post('/api/organization/halls', {
       name: 'Main hall',
       address: 'Hlavná 1',
     });
     const uploaded = await http()
-      .post(`/api/studio/halls/${created.body.id}/files`)
+      .post(`/api/organization/halls/${created.body.id}/files`)
       .set('Authorization', `Bearer ${token}`)
       .attach('files', jpeg, 'a.jpg');
     const file = uploaded.body.images[0] as { id: string; url: string };
@@ -371,7 +391,7 @@ describe('studio halls', () => {
     expect(
       (
         await http()
-          .delete(`/api/studio/halls/${created.body.id}/files/${file.id}`)
+          .delete(`/api/organization/halls/${created.body.id}/files/${file.id}`)
           .set('Authorization', `Bearer ${outsider}`)
       ).status,
     ).toBe(404);

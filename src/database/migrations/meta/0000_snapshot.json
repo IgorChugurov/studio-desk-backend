@@ -1,9 +1,798 @@
 {
-  "id": "9b3c30ea-f63c-48cb-a8af-92bacacbf1e0",
+  "id": "ad9c940e-f5b7-48a1-aced-9622ad7f5ab3",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.class_type": {
+      "name": "class_type",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "default_duration": {
+          "name": "default_duration",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "class_type_organization_id_idx": {
+          "name": "class_type_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "class_type_organization_id_organization_id_fk": {
+          "name": "class_type_organization_id_organization_id_fk",
+          "tableFrom": "class_type",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "class_type_name_not_blank": {
+          "name": "class_type_name_not_blank",
+          "value": "\"class_type\".\"name\" = btrim(\"class_type\".\"name\") and char_length(\"class_type\".\"name\") > 0"
+        },
+        "class_type_description_not_blank": {
+          "name": "class_type_description_not_blank",
+          "value": "\"class_type\".\"description\" is null or (\"class_type\".\"description\" = btrim(\"class_type\".\"description\") and char_length(\"class_type\".\"description\") > 0)"
+        },
+        "class_type_default_duration": {
+          "name": "class_type_default_duration",
+          "value": "\"class_type\".\"default_duration\" between 5 and 240 and \"class_type\".\"default_duration\" % 5 = 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.class_type_file": {
+      "name": "class_type_file",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "class_type_id": {
+          "name": "class_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_path": {
+          "name": "storage_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "index": {
+          "name": "index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "class_type_file_class_type_id_index_unique": {
+          "name": "class_type_file_class_type_id_index_unique",
+          "columns": [
+            {
+              "expression": "class_type_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "class_type_file_class_type_id_class_type_id_fk": {
+          "name": "class_type_file_class_type_id_class_type_id_fk",
+          "tableFrom": "class_type_file",
+          "tableTo": "class_type",
+          "columnsFrom": [
+            "class_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "class_type_file_index_non_negative": {
+          "name": "class_type_file_index_non_negative",
+          "value": "\"class_type_file\".\"index\" >= 0"
+        },
+        "class_type_file_content_type": {
+          "name": "class_type_file_content_type",
+          "value": "\"class_type_file\".\"content_type\" in (\n        'image/jpeg', 'image/png', 'image/webp', 'image/gif',\n        'video/mp4', 'video/webm'\n      )"
+        },
+        "class_type_file_storage_path_not_blank": {
+          "name": "class_type_file_storage_path_not_blank",
+          "value": "\"class_type_file\".\"storage_path\" = btrim(\"class_type_file\".\"storage_path\") and char_length(\"class_type_file\".\"storage_path\") > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.trainer": {
+      "name": "trainer",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "instagram": {
+          "name": "instagram",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tiktok": {
+          "name": "tiktok",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "trainer_organization_id_idx": {
+          "name": "trainer_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "trainer_organization_id_organization_id_fk": {
+          "name": "trainer_organization_id_organization_id_fk",
+          "tableFrom": "trainer",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "trainer_name_not_blank": {
+          "name": "trainer_name_not_blank",
+          "value": "\"trainer\".\"name\" = btrim(\"trainer\".\"name\") and char_length(\"trainer\".\"name\") > 0"
+        },
+        "trainer_description_not_blank": {
+          "name": "trainer_description_not_blank",
+          "value": "\"trainer\".\"description\" is null or (\"trainer\".\"description\" = btrim(\"trainer\".\"description\") and char_length(\"trainer\".\"description\") > 0)"
+        },
+        "trainer_instagram_not_blank": {
+          "name": "trainer_instagram_not_blank",
+          "value": "\"trainer\".\"instagram\" is null or (\"trainer\".\"instagram\" = btrim(\"trainer\".\"instagram\") and char_length(\"trainer\".\"instagram\") > 0)"
+        },
+        "trainer_tiktok_not_blank": {
+          "name": "trainer_tiktok_not_blank",
+          "value": "\"trainer\".\"tiktok\" is null or (\"trainer\".\"tiktok\" = btrim(\"trainer\".\"tiktok\") and char_length(\"trainer\".\"tiktok\") > 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.trainer_class_type": {
+      "name": "trainer_class_type",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trainer_id": {
+          "name": "trainer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "class_type_id": {
+          "name": "class_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "trainer_class_type_organization_id_idx": {
+          "name": "trainer_class_type_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "trainer_class_type_class_type_id_idx": {
+          "name": "trainer_class_type_class_type_id_idx",
+          "columns": [
+            {
+              "expression": "class_type_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "trainer_class_type_organization_id_organization_id_fk": {
+          "name": "trainer_class_type_organization_id_organization_id_fk",
+          "tableFrom": "trainer_class_type",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trainer_class_type_trainer_id_trainer_id_fk": {
+          "name": "trainer_class_type_trainer_id_trainer_id_fk",
+          "tableFrom": "trainer_class_type",
+          "tableTo": "trainer",
+          "columnsFrom": [
+            "trainer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "trainer_class_type_class_type_id_class_type_id_fk": {
+          "name": "trainer_class_type_class_type_id_class_type_id_fk",
+          "tableFrom": "trainer_class_type",
+          "tableTo": "class_type",
+          "columnsFrom": [
+            "class_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "trainer_class_type_trainer_id_class_type_id_pk": {
+          "name": "trainer_class_type_trainer_id_class_type_id_pk",
+          "columns": [
+            "trainer_id",
+            "class_type_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.trainer_file": {
+      "name": "trainer_file",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "trainer_id": {
+          "name": "trainer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_path": {
+          "name": "storage_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "index": {
+          "name": "index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "trainer_file_trainer_id_index_unique": {
+          "name": "trainer_file_trainer_id_index_unique",
+          "columns": [
+            {
+              "expression": "trainer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "trainer_file_trainer_id_trainer_id_fk": {
+          "name": "trainer_file_trainer_id_trainer_id_fk",
+          "tableFrom": "trainer_file",
+          "tableTo": "trainer",
+          "columnsFrom": [
+            "trainer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "trainer_file_index_non_negative": {
+          "name": "trainer_file_index_non_negative",
+          "value": "\"trainer_file\".\"index\" >= 0"
+        },
+        "trainer_file_content_type": {
+          "name": "trainer_file_content_type",
+          "value": "\"trainer_file\".\"content_type\" in (\n        'image/jpeg', 'image/png', 'image/webp', 'image/gif',\n        'video/mp4', 'video/webm'\n      )"
+        },
+        "trainer_file_storage_path_not_blank": {
+          "name": "trainer_file_storage_path_not_blank",
+          "value": "\"trainer_file\".\"storage_path\" = btrim(\"trainer_file\".\"storage_path\") and char_length(\"trainer_file\".\"storage_path\") > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.currency": {
+      "name": "currency",
+      "schema": "",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "currency_code": {
+          "name": "currency_code",
+          "value": "\"currency\".\"code\" = upper(\"currency\".\"code\") and char_length(\"currency\".\"code\") = 3"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.hall": {
+      "name": "hall",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'ordinary'"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "time_zone": {
+          "name": "time_zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "video_link": {
+          "name": "video_link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "hall_organization_id_idx": {
+          "name": "hall_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "hall_organization_id_organization_id_fk": {
+          "name": "hall_organization_id_organization_id_fk",
+          "tableFrom": "hall",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "hall_type": {
+          "name": "hall_type",
+          "value": "\"hall\".\"type\" in ('ordinary', 'virtual')"
+        },
+        "hall_name_not_blank": {
+          "name": "hall_name_not_blank",
+          "value": "\"hall\".\"name\" = btrim(\"hall\".\"name\") and char_length(\"hall\".\"name\") > 0"
+        },
+        "hall_address_not_blank": {
+          "name": "hall_address_not_blank",
+          "value": "\"hall\".\"address\" = btrim(\"hall\".\"address\") and char_length(\"hall\".\"address\") > 0"
+        },
+        "hall_virtual_address": {
+          "name": "hall_virtual_address",
+          "value": "\"hall\".\"type\" = 'ordinary' or \"hall\".\"address\" = 'Virtual hall'"
+        },
+        "hall_time_zone_not_blank": {
+          "name": "hall_time_zone_not_blank",
+          "value": "\"hall\".\"time_zone\" = btrim(\"hall\".\"time_zone\") and char_length(\"hall\".\"time_zone\") > 0"
+        },
+        "hall_description_not_blank": {
+          "name": "hall_description_not_blank",
+          "value": "\"hall\".\"description\" is null or (\n        \"hall\".\"description\" = btrim(\"hall\".\"description\") and char_length(\"hall\".\"description\") > 0\n      )"
+        },
+        "hall_video_link_not_blank": {
+          "name": "hall_video_link_not_blank",
+          "value": "\"hall\".\"video_link\" is null or (\n        \"hall\".\"video_link\" = btrim(\"hall\".\"video_link\") and char_length(\"hall\".\"video_link\") > 0\n      )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.hall_file": {
+      "name": "hall_file",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "hall_id": {
+          "name": "hall_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "storage_path": {
+          "name": "storage_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "index": {
+          "name": "index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "hall_file_hall_id_index_unique": {
+          "name": "hall_file_hall_id_index_unique",
+          "columns": [
+            {
+              "expression": "hall_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "index",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "hall_file_hall_id_hall_id_fk": {
+          "name": "hall_file_hall_id_hall_id_fk",
+          "tableFrom": "hall_file",
+          "tableTo": "hall",
+          "columnsFrom": [
+            "hall_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "hall_file_index_non_negative": {
+          "name": "hall_file_index_non_negative",
+          "value": "\"hall_file\".\"index\" >= 0"
+        },
+        "hall_file_content_type": {
+          "name": "hall_file_content_type",
+          "value": "\"hall_file\".\"content_type\" in (\n        'image/jpeg', 'image/png', 'image/webp', 'image/gif',\n        'video/mp4', 'video/webm'\n      )"
+        },
+        "hall_file_storage_path_not_blank": {
+          "name": "hall_file_storage_path_not_blank",
+          "value": "\"hall_file\".\"storage_path\" = btrim(\"hall_file\".\"storage_path\") and char_length(\"hall_file\".\"storage_path\") > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.foundation_check": {
       "name": "foundation_check",
       "schema": "",
@@ -35,6 +824,2145 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.interface_language": {
+      "name": "interface_language",
+      "schema": "",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "interface_language_email_lower": {
+          "name": "interface_language_email_lower",
+          "value": "\"interface_language\".\"email\" = lower(\"interface_language\".\"email\") and position('@' in \"interface_language\".\"email\") > 1"
+        },
+        "interface_language_language": {
+          "name": "interface_language_language",
+          "value": "\"interface_language\".\"language\" in ('en', 'sk', 'uk')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.session": {
+      "name": "session",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "platform_administrator_id": {
+          "name": "platform_administrator_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "api": {
+          "name": "api",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token_hash": {
+          "name": "refresh_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previous_refresh_token_hash": {
+          "name": "previous_refresh_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rotated_at": {
+          "name": "rotated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "session_platform_administrator_id_platform_administrator_id_fk": {
+          "name": "session_platform_administrator_id_platform_administrator_id_fk",
+          "tableFrom": "session",
+          "tableTo": "platform_administrator",
+          "columnsFrom": [
+            "platform_administrator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "session_refresh_token_hash_unique": {
+          "name": "session_refresh_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "refresh_token_hash"
+          ]
+        },
+        "session_previous_refresh_token_hash_unique": {
+          "name": "session_previous_refresh_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "previous_refresh_token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "session_api": {
+          "name": "session_api",
+          "value": "\"session\".\"api\" in ('platform', 'organization')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.handoff_code": {
+      "name": "handoff_code",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "platform_administrator_id": {
+          "name": "platform_administrator_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "handoff_code_organization_id_organization_id_fk": {
+          "name": "handoff_code_organization_id_organization_id_fk",
+          "tableFrom": "handoff_code",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "handoff_code_platform_administrator_id_platform_administrator_id_fk": {
+          "name": "handoff_code_platform_administrator_id_platform_administrator_id_fk",
+          "tableFrom": "handoff_code",
+          "tableTo": "platform_administrator",
+          "columnsFrom": [
+            "platform_administrator_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "handoff_code_code_hash_unique": {
+          "name": "handoff_code_code_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.platform_administrator": {
+      "name": "platform_administrator",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "platform_administrator_one_row": {
+          "name": "platform_administrator_one_row",
+          "columns": [
+            {
+              "expression": "true",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "platform_administrator_email_unique": {
+          "name": "platform_administrator_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "platform_administrator_email_lower": {
+          "name": "platform_administrator_email_lower",
+          "value": "\"platform_administrator\".\"email\" = lower(\"platform_administrator\".\"email\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.sign_in_code": {
+      "name": "sign_in_code",
+      "schema": "",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts_remaining": {
+          "name": "attempts_remaining",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "sign_in_code_email_lower": {
+          "name": "sign_in_code_email_lower",
+          "value": "\"sign_in_code\".\"email\" = lower(\"sign_in_code\".\"email\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.role_section": {
+      "name": "role_section",
+      "schema": "",
+      "columns": {
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "section": {
+          "name": "section",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "role_section_role_section_pk": {
+          "name": "role_section_role_section_pk",
+          "columns": [
+            "role",
+            "section"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "role_section_role": {
+          "name": "role_section_role",
+          "value": "\"role_section\".\"role\" in ('owner', 'administrator', 'accountant', 'specialist')"
+        },
+        "role_section_section": {
+          "name": "role_section_section",
+          "value": "\"role_section\".\"section\" in (\n        'schedule', 'catalogs', 'clients', 'subscriptions',\n        'accounting', 'organization-settings', 'staff'\n      )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.scheduled_class": {
+      "name": "scheduled_class",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hall_id": {
+          "name": "hall_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "class_type_id": {
+          "name": "class_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_minutes": {
+          "name": "duration_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "audience": {
+          "name": "audience",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "format": {
+          "name": "format",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "places": {
+          "name": "places",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled": {
+          "name": "cancelled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "starts_at": {
+          "name": "starts_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ends_at": {
+          "name": "ends_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "scheduled_class_organization_id_idx": {
+          "name": "scheduled_class_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "scheduled_class_hall_date_idx": {
+          "name": "scheduled_class_hall_date_idx",
+          "columns": [
+            {
+              "expression": "hall_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "scheduled_class_organization_id_organization_id_fk": {
+          "name": "scheduled_class_organization_id_organization_id_fk",
+          "tableFrom": "scheduled_class",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "scheduled_class_hall_id_hall_id_fk": {
+          "name": "scheduled_class_hall_id_hall_id_fk",
+          "tableFrom": "scheduled_class",
+          "tableTo": "hall",
+          "columnsFrom": [
+            "hall_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "scheduled_class_class_type_id_class_type_id_fk": {
+          "name": "scheduled_class_class_type_id_class_type_id_fk",
+          "tableFrom": "scheduled_class",
+          "tableTo": "class_type",
+          "columnsFrom": [
+            "class_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "scheduled_class_audience": {
+          "name": "scheduled_class_audience",
+          "value": "\"scheduled_class\".\"audience\" in ('group', 'one_person')"
+        },
+        "scheduled_class_format": {
+          "name": "scheduled_class_format",
+          "value": "\"scheduled_class\".\"format\" in ('offline', 'offline_and_online', 'online_only')"
+        },
+        "scheduled_class_places": {
+          "name": "scheduled_class_places",
+          "value": "\"scheduled_class\".\"places\" is null or \"scheduled_class\".\"places\" >= 1"
+        },
+        "scheduled_class_ends_after_start": {
+          "name": "scheduled_class_ends_after_start",
+          "value": "\"scheduled_class\".\"ends_at\" > \"scheduled_class\".\"starts_at\""
+        },
+        "scheduled_class_duration": {
+          "name": "scheduled_class_duration",
+          "value": "\"scheduled_class\".\"duration_minutes\" between 5 and 240 and \"scheduled_class\".\"duration_minutes\" % 5 = 0"
+        },
+        "scheduled_class_clock": {
+          "name": "scheduled_class_clock",
+          "value": "extract(second from \"scheduled_class\".\"start_time\") = 0\n        and extract(minute from \"scheduled_class\".\"start_time\")::int % 5 = 0\n        and (extract(hour from \"scheduled_class\".\"start_time\") * 60 + extract(minute from \"scheduled_class\".\"start_time\") + \"scheduled_class\".\"duration_minutes\") <= 1440"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.scheduled_class_trainer": {
+      "name": "scheduled_class_trainer",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "class_id": {
+          "name": "class_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trainer_id": {
+          "name": "trainer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "during": {
+          "name": "during",
+          "type": "tstzrange",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "scheduled_class_trainer_organization_id_idx": {
+          "name": "scheduled_class_trainer_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "scheduled_class_trainer_trainer_id_idx": {
+          "name": "scheduled_class_trainer_trainer_id_idx",
+          "columns": [
+            {
+              "expression": "trainer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "scheduled_class_trainer_organization_id_organization_id_fk": {
+          "name": "scheduled_class_trainer_organization_id_organization_id_fk",
+          "tableFrom": "scheduled_class_trainer",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "scheduled_class_trainer_class_id_scheduled_class_id_fk": {
+          "name": "scheduled_class_trainer_class_id_scheduled_class_id_fk",
+          "tableFrom": "scheduled_class_trainer",
+          "tableTo": "scheduled_class",
+          "columnsFrom": [
+            "class_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "scheduled_class_trainer_trainer_id_trainer_id_fk": {
+          "name": "scheduled_class_trainer_trainer_id_trainer_id_fk",
+          "tableFrom": "scheduled_class_trainer",
+          "tableTo": "trainer",
+          "columnsFrom": [
+            "trainer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "scheduled_class_trainer_class_id_trainer_id_pk": {
+          "name": "scheduled_class_trainer_class_id_trainer_id_pk",
+          "columns": [
+            "class_id",
+            "trainer_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.week_template": {
+      "name": "week_template",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "week_template_organization_name_unique": {
+          "name": "week_template_organization_name_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "week_template_organization_id_idx": {
+          "name": "week_template_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "week_template_organization_id_organization_id_fk": {
+          "name": "week_template_organization_id_organization_id_fk",
+          "tableFrom": "week_template",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "week_template_name_not_blank": {
+          "name": "week_template_name_not_blank",
+          "value": "\"week_template\".\"name\" = btrim(\"week_template\".\"name\") and char_length(\"week_template\".\"name\") > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.week_template_row": {
+      "name": "week_template_row",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "template_id": {
+          "name": "template_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "weekday": {
+          "name": "weekday",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "start_time": {
+          "name": "start_time",
+          "type": "time",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration_minutes": {
+          "name": "duration_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "hall_id": {
+          "name": "hall_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "class_type_id": {
+          "name": "class_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "audience": {
+          "name": "audience",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "format": {
+          "name": "format",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "places": {
+          "name": "places",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "week_template_row_template_id_idx": {
+          "name": "week_template_row_template_id_idx",
+          "columns": [
+            {
+              "expression": "template_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "week_template_row_organization_id_idx": {
+          "name": "week_template_row_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "week_template_row_organization_id_organization_id_fk": {
+          "name": "week_template_row_organization_id_organization_id_fk",
+          "tableFrom": "week_template_row",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "week_template_row_template_id_week_template_id_fk": {
+          "name": "week_template_row_template_id_week_template_id_fk",
+          "tableFrom": "week_template_row",
+          "tableTo": "week_template",
+          "columnsFrom": [
+            "template_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "week_template_row_hall_id_hall_id_fk": {
+          "name": "week_template_row_hall_id_hall_id_fk",
+          "tableFrom": "week_template_row",
+          "tableTo": "hall",
+          "columnsFrom": [
+            "hall_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "week_template_row_class_type_id_class_type_id_fk": {
+          "name": "week_template_row_class_type_id_class_type_id_fk",
+          "tableFrom": "week_template_row",
+          "tableTo": "class_type",
+          "columnsFrom": [
+            "class_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "week_template_row_weekday": {
+          "name": "week_template_row_weekday",
+          "value": "\"week_template_row\".\"weekday\" in ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')"
+        },
+        "week_template_row_audience": {
+          "name": "week_template_row_audience",
+          "value": "\"week_template_row\".\"audience\" in ('group', 'one_person')"
+        },
+        "week_template_row_format": {
+          "name": "week_template_row_format",
+          "value": "\"week_template_row\".\"format\" in ('offline', 'offline_and_online', 'online_only')"
+        },
+        "week_template_row_places": {
+          "name": "week_template_row_places",
+          "value": "\"week_template_row\".\"places\" is null or \"week_template_row\".\"places\" >= 1"
+        },
+        "week_template_row_duration": {
+          "name": "week_template_row_duration",
+          "value": "\"week_template_row\".\"duration_minutes\" between 5 and 240 and \"week_template_row\".\"duration_minutes\" % 5 = 0"
+        },
+        "week_template_row_clock": {
+          "name": "week_template_row_clock",
+          "value": "extract(second from \"week_template_row\".\"start_time\") = 0\n        and extract(minute from \"week_template_row\".\"start_time\")::int % 5 = 0\n        and (extract(hour from \"week_template_row\".\"start_time\") * 60 + extract(minute from \"week_template_row\".\"start_time\") + \"week_template_row\".\"duration_minutes\") <= 1440"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.week_template_row_trainer": {
+      "name": "week_template_row_trainer",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_id": {
+          "name": "row_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trainer_id": {
+          "name": "trainer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "week_template_row_trainer_organization_id_idx": {
+          "name": "week_template_row_trainer_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "week_template_row_trainer_organization_id_organization_id_fk": {
+          "name": "week_template_row_trainer_organization_id_organization_id_fk",
+          "tableFrom": "week_template_row_trainer",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "week_template_row_trainer_row_id_week_template_row_id_fk": {
+          "name": "week_template_row_trainer_row_id_week_template_row_id_fk",
+          "tableFrom": "week_template_row_trainer",
+          "tableTo": "week_template_row",
+          "columnsFrom": [
+            "row_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "week_template_row_trainer_trainer_id_trainer_id_fk": {
+          "name": "week_template_row_trainer_trainer_id_trainer_id_fk",
+          "tableFrom": "week_template_row_trainer",
+          "tableTo": "trainer",
+          "columnsFrom": [
+            "trainer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "week_template_row_trainer_row_id_trainer_id_pk": {
+          "name": "week_template_row_trainer_row_id_trainer_id_pk",
+          "columns": [
+            "row_id",
+            "trainer_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.organization": {
+      "name": "organization",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subdomain": {
+          "name": "subdomain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "custom_domain": {
+          "name": "custom_domain",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_email": {
+          "name": "owner_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "language": {
+          "name": "language",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'en'"
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'SK'"
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'EUR'"
+        },
+        "time_zone": {
+          "name": "time_zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Europe/Bratislava'"
+        },
+        "preset_id": {
+          "name": "preset_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preset_name": {
+          "name": "preset_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schedule_config": {
+          "name": "schedule_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "billing_config": {
+          "name": "billing_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'active'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "organization_subdomain_unique": {
+          "name": "organization_subdomain_unique",
+          "columns": [
+            {
+              "expression": "subdomain",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "organization_owner_email_idx": {
+          "name": "organization_owner_email_idx",
+          "columns": [
+            {
+              "expression": "owner_email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "organization_custom_domain_unique": {
+          "name": "organization_custom_domain_unique",
+          "columns": [
+            {
+              "expression": "custom_domain",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"organization\".\"custom_domain\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "organization_currency_currency_code_fk": {
+          "name": "organization_currency_currency_code_fk",
+          "tableFrom": "organization",
+          "tableTo": "currency",
+          "columnsFrom": [
+            "currency"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "organization_preset_id_preset_id_fk": {
+          "name": "organization_preset_id_preset_id_fk",
+          "tableFrom": "organization",
+          "tableTo": "preset",
+          "columnsFrom": [
+            "preset_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "organization_name_length": {
+          "name": "organization_name_length",
+          "value": "char_length(\"organization\".\"name\") between 2 and 100 and \"organization\".\"name\" = btrim(\"organization\".\"name\")"
+        },
+        "organization_subdomain_format": {
+          "name": "organization_subdomain_format",
+          "value": "\"organization\".\"subdomain\" = lower(\"organization\".\"subdomain\") and \"organization\".\"subdomain\" ~ $1"
+        },
+        "organization_custom_domain_format": {
+          "name": "organization_custom_domain_format",
+          "value": "\"organization\".\"custom_domain\" is null or (\n        \"organization\".\"custom_domain\" = lower(\"organization\".\"custom_domain\")\n        and char_length(\"organization\".\"custom_domain\") between 1 and 253\n        and \"organization\".\"custom_domain\" !~ '://'\n        and \"organization\".\"custom_domain\" ~ $1\n        and \"organization\".\"custom_domain\" <> 'studio-desk.axondigital.xyz'\n        and \"organization\".\"custom_domain\" !~ '\\.studio-desk\\.axondigital\\.xyz$'\n      )"
+        },
+        "organization_owner_email_lower": {
+          "name": "organization_owner_email_lower",
+          "value": "\"organization\".\"owner_email\" = lower(\"organization\".\"owner_email\") and position('@' in \"organization\".\"owner_email\") > 1"
+        },
+        "organization_status": {
+          "name": "organization_status",
+          "value": "\"organization\".\"status\" in ('active', 'deactivated')"
+        },
+        "organization_language": {
+          "name": "organization_language",
+          "value": "\"organization\".\"language\" in ('en', 'sk', 'uk')"
+        },
+        "organization_country": {
+          "name": "organization_country",
+          "value": "\"organization\".\"country\" = upper(\"organization\".\"country\") and char_length(\"organization\".\"country\") = 2"
+        },
+        "organization_time_zone": {
+          "name": "organization_time_zone",
+          "value": "\"organization\".\"time_zone\" = btrim(\"organization\".\"time_zone\") and char_length(\"organization\".\"time_zone\") > 0"
+        },
+        "organization_preset_name_length": {
+          "name": "organization_preset_name_length",
+          "value": "char_length(\"organization\".\"preset_name\") between 2 and 100 and \"organization\".\"preset_name\" = btrim(\"organization\".\"preset_name\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.organization_resource_type": {
+      "name": "organization_resource_type",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "labels": {
+          "name": "labels",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "geography": {
+          "name": "geography",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "duration": {
+          "name": "duration",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "showcase": {
+          "name": "showcase",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "person": {
+          "name": "person",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "skills": {
+          "name": "skills",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "required": {
+          "name": "required",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "multiple": {
+          "name": "multiple",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "conflict_mode": {
+          "name": "conflict_mode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "organization_resource_type_sort_unique": {
+          "name": "organization_resource_type_sort_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sort_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "organization_resource_type_organization_id_idx": {
+          "name": "organization_resource_type_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "organization_resource_type_organization_id_organization_id_fk": {
+          "name": "organization_resource_type_organization_id_organization_id_fk",
+          "tableFrom": "organization_resource_type",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "organization_resource_type_role": {
+          "name": "organization_resource_type_role",
+          "value": "\"organization_resource_type\".\"role\" in ('place', 'resource', 'offering')"
+        },
+        "organization_resource_type_conflict_mode": {
+          "name": "organization_resource_type_conflict_mode",
+          "value": "\"organization_resource_type\".\"conflict_mode\" in ('strict', 'warning', 'none')"
+        },
+        "organization_resource_type_sort_order": {
+          "name": "organization_resource_type_sort_order",
+          "value": "\"organization_resource_type\".\"sort_order\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.organization_section": {
+      "name": "organization_section",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "section": {
+          "name": "section",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "organization_section_organization_id_organization_id_fk": {
+          "name": "organization_section_organization_id_organization_id_fk",
+          "tableFrom": "organization_section",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "organization_section_organization_id_section_pk": {
+          "name": "organization_section_organization_id_section_pk",
+          "columns": [
+            "organization_id",
+            "section"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "organization_section_section": {
+          "name": "organization_section_section",
+          "value": "\"organization_section\".\"section\" in (\n        'schedule', 'catalogs', 'clients', 'subscriptions',\n        'accounting', 'organization-settings', 'staff'\n      )"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.organization_selection_ticket": {
+      "name": "organization_selection_ticket",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "organization_selection_ticket_token_hash_unique": {
+          "name": "organization_selection_ticket_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "organization_selection_ticket_email_lower": {
+          "name": "organization_selection_ticket_email_lower",
+          "value": "\"organization_selection_ticket\".\"email\" = lower(\"organization_selection_ticket\".\"email\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.organization_session": {
+      "name": "organization_session",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token_hash": {
+          "name": "refresh_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "previous_refresh_token_hash": {
+          "name": "previous_refresh_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rotated_at": {
+          "name": "rotated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "impersonated_by": {
+          "name": "impersonated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "organization_session_email_idx": {
+          "name": "organization_session_email_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "organization_session_organization_id_organization_id_fk": {
+          "name": "organization_session_organization_id_organization_id_fk",
+          "tableFrom": "organization_session",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "organization_session_impersonated_by_platform_administrator_id_fk": {
+          "name": "organization_session_impersonated_by_platform_administrator_id_fk",
+          "tableFrom": "organization_session",
+          "tableTo": "platform_administrator",
+          "columnsFrom": [
+            "impersonated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "organization_session_refresh_token_hash_unique": {
+          "name": "organization_session_refresh_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "refresh_token_hash"
+          ]
+        },
+        "organization_session_previous_refresh_token_hash_unique": {
+          "name": "organization_session_previous_refresh_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "previous_refresh_token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "organization_session_email_lower": {
+          "name": "organization_session_email_lower",
+          "value": "\"organization_session\".\"email\" = lower(\"organization_session\".\"email\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.organization_sign_in_code": {
+      "name": "organization_sign_in_code",
+      "schema": "",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "code_hash": {
+          "name": "code_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts_remaining": {
+          "name": "attempts_remaining",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "organization_sign_in_code_email_lower": {
+          "name": "organization_sign_in_code_email_lower",
+          "value": "\"organization_sign_in_code\".\"email\" = lower(\"organization_sign_in_code\".\"email\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.organization_staff": {
+      "name": "organization_staff",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "organization_staff_email_unique": {
+          "name": "organization_staff_email_unique",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "organization_staff_email_idx": {
+          "name": "organization_staff_email_idx",
+          "columns": [
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "organization_staff_organization_id_organization_id_fk": {
+          "name": "organization_staff_organization_id_organization_id_fk",
+          "tableFrom": "organization_staff",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "organization_staff_email_lower": {
+          "name": "organization_staff_email_lower",
+          "value": "\"organization_staff\".\"email\" = lower(\"organization_staff\".\"email\")"
+        },
+        "organization_staff_role": {
+          "name": "organization_staff_role",
+          "value": "\"organization_staff\".\"role\" in ('administrator', 'accountant', 'specialist')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.staff_trainer": {
+      "name": "staff_trainer",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "staff_id": {
+          "name": "staff_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "trainer_id": {
+          "name": "trainer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "staff_trainer_trainer_id_unique": {
+          "name": "staff_trainer_trainer_id_unique",
+          "columns": [
+            {
+              "expression": "trainer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "staff_trainer_organization_id_idx": {
+          "name": "staff_trainer_organization_id_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "staff_trainer_organization_id_organization_id_fk": {
+          "name": "staff_trainer_organization_id_organization_id_fk",
+          "tableFrom": "staff_trainer",
+          "tableTo": "organization",
+          "columnsFrom": [
+            "organization_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "staff_trainer_staff_id_organization_staff_id_fk": {
+          "name": "staff_trainer_staff_id_organization_staff_id_fk",
+          "tableFrom": "staff_trainer",
+          "tableTo": "organization_staff",
+          "columnsFrom": [
+            "staff_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "staff_trainer_trainer_id_trainer_id_fk": {
+          "name": "staff_trainer_trainer_id_trainer_id_fk",
+          "tableFrom": "staff_trainer",
+          "tableTo": "trainer",
+          "columnsFrom": [
+            "trainer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.preset": {
+      "name": "preset",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sections": {
+          "name": "sections",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "catalog_config": {
+          "name": "catalog_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "schedule_config": {
+          "name": "schedule_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "billing_config": {
+          "name": "billing_config",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "preset_name_unique": {
+          "name": "preset_name_unique",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "preset_name_length": {
+          "name": "preset_name_length",
+          "value": "char_length(\"preset\".\"name\") between 2 and 100 and \"preset\".\"name\" = btrim(\"preset\".\"name\")"
+        },
+        "preset_description": {
+          "name": "preset_description",
+          "value": "\"preset\".\"description\" is null or (\n        \"preset\".\"description\" = btrim(\"preset\".\"description\") and char_length(\"preset\".\"description\") > 0\n      )"
+        },
+        "preset_sections_non_empty": {
+          "name": "preset_sections_non_empty",
+          "value": "jsonb_typeof(\"preset\".\"sections\") = 'array' and jsonb_array_length(\"preset\".\"sections\") > 0"
+        }
+      },
       "isRLSEnabled": false
     }
   },
