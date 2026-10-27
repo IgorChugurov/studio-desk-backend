@@ -78,7 +78,10 @@ export class WeekTemplatesController {
     @Param('id') id: string,
     @ZodBody(rowBody) body: z.infer<typeof rowBody>,
   ) {
-    return this.templates.addRow(sessionOf(request), parseId(id), body);
+    return this.templates.addRow(sessionOf(request), parseId(id), {
+      ...body,
+      resourceIds: body.resourceIds ?? [],
+    });
   }
 
   @Patch(':id/rows/:rowId')

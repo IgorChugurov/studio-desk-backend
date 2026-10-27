@@ -10,8 +10,8 @@ import { StudioMeController } from './me/studio-me.controller.js';
 import { StudioMeService } from './me/studio-me.service.js';
 import { StudioSettingsController } from './settings/studio-settings.controller.js';
 import { StudioSettingsService } from './settings/studio-settings.service.js';
-import { ClassesController } from './schedule/classes.controller.js';
-import { ClassesService } from './schedule/classes.service.js';
+import { ScheduleSlotsController } from './schedule/schedule-slots.controller.js';
+import { ScheduleSlotsService } from './schedule/schedule-slots.service.js';
 import { WeekTemplatesController } from './schedule/week-templates.controller.js';
 import { WeekTemplatesService } from './schedule/week-templates.service.js';
 import { WeeksController } from './schedule/weeks.controller.js';
@@ -30,7 +30,7 @@ import { StudioAuthGuard } from './studio-auth.guard.js';
     StudioStaffController,
     StudioResourcesController,
     WeekTemplatesController,
-    ClassesController,
+    ScheduleSlotsController,
     WeeksController,
   ],
   providers: [
@@ -42,7 +42,7 @@ import { StudioAuthGuard } from './studio-auth.guard.js';
     StudioStaffService,
     StudioResourcesService,
     WeekTemplatesService,
-    ClassesService,
+    ScheduleSlotsService,
     WeeksService,
     { provide: MAILER, useClass: ResendMailer },
   ],

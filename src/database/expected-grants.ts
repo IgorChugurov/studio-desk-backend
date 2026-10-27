@@ -97,12 +97,12 @@ export const expectedGrants: Record<
     studio_api: ['SELECT'],
     public_api: [],
   },
-  scheduled_class: {
+  schedule_slot: {
     platform_api: [],
     studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
     public_api: [],
   },
-  scheduled_class_trainer: {
+  schedule_slot_resource: {
     platform_api: [],
     studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
     public_api: [],
@@ -132,7 +132,7 @@ export const expectedGrants: Record<
     studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
     public_api: [],
   },
-  week_template_row_trainer: {
+  week_template_row_resource: {
     platform_api: [],
     studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
     public_api: [],

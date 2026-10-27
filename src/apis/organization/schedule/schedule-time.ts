@@ -84,42 +84,34 @@ export function counted(n: number, singular: string, plural: string): string {
 export function appliedText(added: number): string {
   return counted(
     added,
-    `Template applied: ${added} class added`,
-    `Template applied: ${added} classes added`,
+    `Template applied: ${added} slot added`,
+    `Template applied: ${added} slots added`,
   );
 }
 
 export function clearPreviewText(deleted: number): string {
   return counted(
     deleted,
-    `${deleted} class will be deleted`,
-    `${deleted} classes will be deleted`,
+    `${deleted} slot will be deleted`,
+    `${deleted} slots will be deleted`,
   );
 }
 
 export function replacePreviewText(deleted: number, created: number): string {
   return counted(
     deleted,
-    `${deleted} class will be deleted and ${created} created`,
-    `${deleted} classes will be deleted and ${created} created`,
+    `${deleted} slot will be deleted and ${created} created`,
+    `${deleted} slots will be deleted and ${created} created`,
   );
 }
 
-export function hallBusyText(
-  classTypeName: string,
-  start: string,
-  end: string,
-): string {
-  return `The hall is busy at this time: ${classTypeName} ${start}–${end}`;
-}
-
-export function trainerBusyText(
-  trainerName: string,
-  hallName: string,
-  start: string,
-  end: string,
-): string {
-  return `${trainerName} has another class at this time: ${hallName} ${start}–${end}`;
+export function busyMessage(input: {
+  resourceName: string;
+  title: string;
+  start: string;
+  end: string;
+}): string {
+  return `${input.resourceName} is busy at this time: ${input.title} ${input.start}–${input.end}`;
 }
 
 function utcDate(iso: string): Date {

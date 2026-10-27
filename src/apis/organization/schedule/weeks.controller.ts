@@ -24,13 +24,13 @@ const applyBody = z.object(weeks);
 const clearBody = z.object({
   from: dateField,
   to: dateField,
-  hallIds: z.array(z.uuid()).nullable().optional(),
+  placeResourceIds: z.array(z.uuid()).nullable().optional(),
   preview: z.boolean().optional(),
 });
 const replaceBody = z.object({
   ...weeks,
-  clear: z.enum(['template_halls', 'all_halls'], {
-    error: 'Choose template halls or all halls',
+  clear: z.enum(['template_places', 'all_places'], {
+    error: 'Choose template places or all places',
   }),
   preview: z.boolean().optional(),
 });
@@ -57,7 +57,7 @@ export class WeeksController {
     return this.weeks.clear(sessionOf(request), {
       from: body.from,
       to: body.to,
-      hallIds: body.hallIds ?? null,
+      placeResourceIds: body.placeResourceIds ?? null,
       preview: body.preview ?? false,
     });
   }

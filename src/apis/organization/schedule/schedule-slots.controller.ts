@@ -15,59 +15,71 @@ import {
   ZodQuery,
 } from '../../../common/validation/zod.decorators.js';
 import type { StudioRequest } from '../studio-auth.guard.js';
-import { ClassesService } from './classes.service.js';
-import { classBody, classPatch } from './schedule-body.js';
+import { restoreBody, slotBody, slotPatch } from './schedule-body.js';
+import { ScheduleSlotsService } from './schedule-slots.service.js';
 
 const listQuery = z.object({
   from: z.iso.date({ error: 'Select a date' }),
   to: z.iso.date({ error: 'Select a date' }),
-  hallId: z.uuid().optional(),
-  trainerId: z.uuid().optional(),
+  resourceId: z.uuid().optional(),
 });
 
-@Controller('classes')
-export class ClassesController {
-  constructor(private readonly classes: ClassesService) {}
+@Controller('schedule-slots')
+export class ScheduleSlotsController {
+  constructor(private readonly slots: ScheduleSlotsService) {}
 
   @Get()
   list(
     @Req() request: StudioRequest,
     @ZodQuery(listQuery) query: z.infer<typeof listQuery>,
   ) {
-    return this.classes.list(sessionOf(request), query);
+    return this.slots.list(sessionOf(request), query);
   }
 
   @Post()
   @HttpCode(201)
   create(
     @Req() request: StudioRequest,
-    @ZodBody(classBody) body: z.infer<typeof classBody>,
+    @ZodBody(slotBody) body: z.infer<typeof slotBody>,
   ) {
-    return this.classes.create(sessionOf(request), body);
+    return this.slots.create(sessionOf(request), {
+      ...body,
+      resourceIds: body.resourceIds ?? [],
+    });
   }
 
   @Get(':id')
   one(@Req() request: StudioRequest, @Param('id') id: string) {
-    return this.classes.get(sessionOf(request), parseId(id));
+    return this.slots.get(sessionOf(request), parseId(id));
   }
 
   @Patch(':id')
   update(
     @Req() request: StudioRequest,
     @Param('id') id: string,
-    @ZodBody(classPatch) body: z.infer<typeof classPatch>,
+    @ZodBody(slotPatch) body: z.infer<typeof slotPatch>,
   ) {
-    return this.classes.update(sessionOf(request), parseId(id), body);
+    return this.slots.update(sessionOf(request), parseId(id), body);
   }
 
   @Post(':id/cancel')
+  @HttpCode(200)
   cancel(@Req() request: StudioRequest, @Param('id') id: string) {
-    return this.classes.cancel(sessionOf(request), parseId(id));
+    return this.slots.cancel(sessionOf(request), parseId(id));
   }
 
   @Post(':id/restore')
-  restore(@Req() request: StudioRequest, @Param('id') id: string) {
-    return this.classes.restore(sessionOf(request), parseId(id));
+  @HttpCode(200)
+  restore(
+    @Req() request: StudioRequest,
+    @Param('id') id: string,
+    @ZodBody(restoreBody) body: z.infer<typeof restoreBody>,
+  ) {
+    return this.slots.restore(
+      sessionOf(request),
+      parseId(id),
+      body.confirmOverlap === true,
+    );
   }
 
   @Post(':id/replace')
@@ -75,15 +87,18 @@ export class ClassesController {
   replace(
     @Req() request: StudioRequest,
     @Param('id') id: string,
-    @ZodBody(classBody) body: z.infer<typeof classBody>,
+    @ZodBody(slotBody) body: z.infer<typeof slotBody>,
   ) {
-    return this.classes.replace(sessionOf(request), parseId(id), body);
+    return this.slots.replace(sessionOf(request), parseId(id), {
+      ...body,
+      resourceIds: body.resourceIds ?? [],
+    });
   }
 
   @Delete(':id')
   @HttpCode(204)
   remove(@Req() request: StudioRequest, @Param('id') id: string) {
-    return this.classes.remove(sessionOf(request), parseId(id));
+    return this.slots.remove(sessionOf(request), parseId(id));
   }
 }
 
@@ -95,6 +110,6 @@ function sessionOf(request: StudioRequest) {
 
 function parseId(id: string) {
   if (!z.uuid().safeParse(id).success)
-    throw ApiError.notFound('Class not found');
+    throw ApiError.notFound('Slot not found');
   return id;
 }

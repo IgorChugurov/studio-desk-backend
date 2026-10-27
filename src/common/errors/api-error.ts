@@ -28,12 +28,12 @@ export interface FieldError {
 }
 
 export interface ScheduleConflict {
-  classTypeName?: string;
-  trainerName?: string;
-  hallName?: string;
+  resourceId: string;
+  resourceName: string;
   start: string;
   end: string;
-  classId?: string;
+  title: string;
+  slotId?: string;
 }
 
 export interface ApiErrorBody {

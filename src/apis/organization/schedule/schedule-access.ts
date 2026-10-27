@@ -9,21 +9,21 @@ export async function openSchedule(
   access: StudioAccessService,
   db: Sql,
   session: StudioSessionInfo,
-): Promise<{ role: string; trainerId: string | null }> {
+): Promise<{ role: string; resourceId: string | null }> {
   await access.assertSection(session, 'schedule');
   const role = await access.roleOf(session);
-  if (role !== 'specialist') return { role, trainerId: null };
-  const rows = await db.execute<{ trainer_id: string }>(sql`
-    select link.resource_id as trainer_id
+  if (role !== 'specialist') return { role, resourceId: null };
+  const rows = await db.execute<{ resource_id: string }>(sql`
+    select link.resource_id
       from organization_staff staff
       join staff_resource link on link.staff_id = staff.id
      where staff.organization_id = ${session.organizationId}
        and staff.email = ${session.email}
        and staff.role = 'specialist'
   `);
-  const trainerId = rows.rows[0]?.trainer_id;
-  if (!trainerId) throw pageForbidden();
-  return { role, trainerId };
+  const resourceId = rows.rows[0]?.resource_id;
+  if (!resourceId) throw pageForbidden();
+  return { role, resourceId };
 }
 
 export function assertWriter(role: string): void {

@@ -16,7 +16,8 @@ import {
 } from '../../../database/schema/index.js';
 import { StudioAccessService } from '../access/studio-access.service.js';
 import type { StudioSessionInfo } from '../auth/studio-auth.service.js';
-import { retimeHall, zoneConflict } from '../schedule/schedule-db.js';
+import { busyMessage } from '../schedule/schedule-time.js';
+import { retimePlace, zoneConflict } from '../schedule/schedule-db.js';
 import { TIME_ZONES } from '../settings/organization-settings.js';
 import { detectContentType, fileRejection } from '../halls/file-type.js';
 import { readUploadedFiles } from '../halls/multipart-files.js';
@@ -279,7 +280,7 @@ export class StudioResourcesService {
           draft.relatedResourceIds,
         );
       }
-      if (zoneChanges && nextZone) await retimeHall(tx, id, nextZone);
+      if (zoneChanges && nextZone) await retimePlace(tx, id, nextZone);
     });
     return this.read(session.organizationId, id);
   }
@@ -995,12 +996,19 @@ function filesClosed() {
   ]);
 }
 
-function resourceBusy(conflict: ApiError) {
+function resourceBusy(conflict: {
+  resourceId: string;
+  resourceName: string;
+  start: string;
+  end: string;
+  title: string;
+  slotId?: string;
+}) {
   return new ApiError({
     statusCode: 409,
     code: 'RESOURCE_BUSY',
-    message: conflict.body.message,
-    conflict: conflict.body.conflict,
+    message: busyMessage(conflict),
+    conflict,
   });
 }
 

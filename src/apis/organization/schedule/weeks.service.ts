@@ -5,27 +5,28 @@ import { type Database, STUDIO_DB } from '../../../database/database.module.js';
 import { StudioAccessService } from '../access/studio-access.service.js';
 import type { StudioSessionInfo } from '../auth/studio-auth.service.js';
 import { assertWriter, openSchedule } from './schedule-access.js';
-import type { ClassFields } from './schedule-db.js';
+import type { TimeConflict } from './schedule-db.js';
 import {
-  deleteClass,
-  hallOf,
-  insertClass,
+  deleteSlot,
+  findConflicts,
+  insertSlot,
   isPast,
-  listOverlaps,
+  loadCatalog,
   studioToday,
 } from './schedule-db.js';
 import {
   addDays,
   appliedText,
+  busyMessage,
   clearPreviewText,
   eachDate,
   endClock,
-  hallBusyText,
   mondayOf,
   replacePreviewText,
-  trainerBusyText,
   weekdayOf,
 } from './schedule-time.js';
+import type { SlotFields, SlotKind } from './schedule-validate.js';
+import { slotTitle } from './schedule-validate.js';
 
 interface Choice {
   rowId: string;
@@ -33,10 +34,11 @@ interface Choice {
   choice: 'keep_existing' | 'apply_new';
 }
 
-interface Occurrence extends ClassFields {
+interface Occurrence extends SlotFields {
   rowId: string;
+  date: string;
   timeZone: string;
-  classTypeName: string;
+  title: string;
 }
 
 @Injectable()
@@ -72,23 +74,23 @@ export class WeeksService {
     input: {
       from: string;
       to: string;
-      hallIds: string[] | null;
+      placeResourceIds: string[] | null;
       preview: boolean;
     },
   ) {
     await this.writer(session);
     const span = await this.span(session.organizationId, input.from, input.to);
-    await this.assertHalls(session.organizationId, input.hallIds);
+    await this.assertPlaces(session.organizationId, input.placeResourceIds);
     const ids = await this.clearable(
       session.organizationId,
       span,
-      input.hallIds,
+      input.placeResourceIds,
     );
     if (input.preview) {
       return { deleted: ids.length, text: clearPreviewText(ids.length) };
     }
     await this.db.transaction(async (tx) => {
-      for (const id of ids) await deleteClass(tx, id);
+      for (const id of ids) await deleteSlot(tx, id);
     });
     return { deleted: ids.length, text: 'Weeks cleared' };
   }
@@ -99,7 +101,7 @@ export class WeeksService {
       templateId: string;
       from: string;
       to: string;
-      clear: 'template_halls' | 'all_halls';
+      clear: 'template_places' | 'all_places';
       preview: boolean;
       choices?: Choice[];
     },
@@ -112,11 +114,15 @@ export class WeeksService {
       span,
       new Set(),
     );
-    const hallIds =
-      input.clear === 'all_halls'
+    const placeResourceIds =
+      input.clear === 'all_places'
         ? null
-        : [...new Set(draft.occurrences.map((item) => item.hallId))];
-    const doomed = await this.clearable(session.organizationId, span, hallIds);
+        : [...new Set(draft.occurrences.map((item) => item.placeResourceId))];
+    const doomed = await this.clearable(
+      session.organizationId,
+      span,
+      placeResourceIds,
+    );
     const plan = await this.plan(
       session.organizationId,
       input.templateId,
@@ -162,28 +168,17 @@ export class WeeksService {
         conflicts: plan.conflicts.map((item) => ({
           rowId: item.occurrence.rowId,
           date: item.occurrence.date,
-          classTypeName: item.occurrence.classTypeName,
+          title: item.occurrence.title,
           start: item.occurrence.startTime,
           end: endClock(
             item.occurrence.startTime,
             item.occurrence.durationMinutes,
           ),
           existing: item.existing.map((row) => ({
-            classId: row.class_id,
-            reason: row.reason,
-            message:
-              row.reason === 'hall'
-                ? hallBusyText(
-                    row.class_type_name,
-                    row.start_time.slice(0, 5),
-                    endClock(row.start_time.slice(0, 5), row.duration_minutes),
-                  )
-                : trainerBusyText(
-                    row.trainer_name ?? '',
-                    row.hall_name,
-                    row.start_time.slice(0, 5),
-                    endClock(row.start_time.slice(0, 5), row.duration_minutes),
-                  ),
+            slotId: row.slotId,
+            resourceId: row.resourceId,
+            resourceName: row.resourceName,
+            message: busyMessage(row),
             started: row.started,
           })),
         })),
@@ -192,7 +187,7 @@ export class WeeksService {
     let added = 0;
     await this.db.transaction(async (tx) => {
       if (clearing) {
-        for (const id of doomed) await deleteClass(tx, id);
+        for (const id of doomed) await deleteSlot(tx, id);
       }
       const gone = new Set(doomed);
       for (const item of plan.conflicts) {
@@ -202,11 +197,11 @@ export class WeeksService {
             entry.date === item.occurrence.date,
         );
         if (choice?.choice !== 'apply_new') continue;
-        const blocking = item.existing.filter((row) => !gone.has(row.class_id));
+        const blocking = item.existing.filter((row) => !gone.has(row.slotId));
         if (blocking.some((row) => row.started)) throw alreadyStarted();
         for (const row of blocking) {
-          await deleteClass(tx, row.class_id);
-          gone.add(row.class_id);
+          await deleteSlot(tx, row.slotId);
+          gone.add(row.slotId);
         }
       }
       const creating = [
@@ -222,8 +217,15 @@ export class WeeksService {
           )
           .map((item) => item.occurrence),
       ];
+      const catalog = await loadCatalog(tx, organizationId);
       for (const item of creating) {
-        await insertClass(tx, organizationId, item, item.timeZone);
+        const links = [item.placeResourceId, ...item.resourceIds].flatMap(
+          (id) => {
+            const resource = catalog.resources.get(id);
+            return resource ? [resource] : [];
+          },
+        );
+        await insertSlot(tx, organizationId, item, item.timeZone, links, true);
         added += 1;
       }
     });
@@ -242,27 +244,35 @@ export class WeeksService {
       const weekday = weekdayOf(date);
       for (const row of rows) {
         if (row.weekday !== weekday) continue;
-        const hall = await hallOf(this.db, organizationId, row.hallId);
-        if (await isPast(this.db, hall.timeZone, date, row.startTime)) continue;
-        occurrences.push({
-          ...row,
-          date,
-          timeZone: hall.timeZone,
-          classTypeName: row.classTypeName,
-        });
+        const places = await this.db.execute<{ time_zone: string }>(sql`
+          select time_zone from resource where id = ${row.placeResourceId}
+        `);
+        const timeZone = places.rows[0]?.time_zone;
+        if (!timeZone) continue;
+        if (await isPast(this.db, timeZone, date, row.startTime)) continue;
+        occurrences.push({ ...row, date, timeZone });
       }
     }
     const existing = (await this.existing(organizationId, span)).filter(
       (row) => !ignore.has(row.id),
     );
     const fresh: Occurrence[] = [];
-    const conflicts: {
-      occurrence: Occurrence;
-      existing: Awaited<ReturnType<typeof listOverlaps>>;
-    }[] = [];
+    const conflicts: { occurrence: Occurrence; existing: TimeConflict[] }[] =
+      [];
     for (const item of occurrences) {
       if (existing.some((row) => same(row, item))) continue;
-      const overlaps = await listOverlaps(this.db, item, item.timeZone);
+      const found = await findConflicts(
+        this.db,
+        organizationId,
+        item,
+        item.timeZone,
+        null,
+        [...ignore],
+      );
+      const overlaps = [
+        ...(found.strict ? [found.strict] : []),
+        ...found.warnings,
+      ];
       if (overlaps.length === 0) fresh.push(item);
       else conflicts.push({ occurrence: item, existing: overlaps });
     }
@@ -271,47 +281,61 @@ export class WeeksService {
 
   private async rows(organizationId: string, templateId: string) {
     const templates = await this.db.execute<{ id: string }>(sql`
-      select id from week_template where id = ${templateId} and organization_id = ${organizationId}
+      select id from week_template
+       where id = ${templateId} and organization_id = ${organizationId}
     `);
     if (!templates.rows[0]) throw ApiError.notFound('Template not found');
     const rows = await this.db.execute<{
       id: string;
+      kind: SlotKind;
       weekday: string;
       start_time: string;
       duration_minutes: number;
-      hall_id: string;
-      class_type_id: string;
-      class_type_name: string;
-      audience: ClassFields['audience'];
-      format: ClassFields['format'];
+      place_resource_id: string;
+      audience: SlotFields['audience'];
+      format: SlotFields['format'];
       places: number | null;
+      note: string | null;
+      blocks_all: boolean;
     }>(sql`
-      select r.id, r.weekday, to_char(r.start_time, 'HH24:MI') as start_time,
-             r.duration_minutes, r.hall_id, r.class_type_id, ct.name as class_type_name,
-             r.audience, r.format, r.places
-        from week_template_row r
-        join resource ct on ct.id = r.class_type_id
-       where r.template_id = ${templateId}
+      select id, kind, weekday, to_char(start_time, 'HH24:MI') as start_time,
+             duration_minutes, place_resource_id, audience, format, places,
+             note, blocks_all
+        from week_template_row
+       where template_id = ${templateId}
     `);
     const result = [];
     for (const row of rows.rows) {
-      const trainers = await this.db.execute<{ trainer_id: string }>(sql`
-        select trainer_id from week_template_row_trainer
-         where row_id = ${row.id}
-         order by created_at, trainer_id
+      const links = await this.db.execute<{
+        resource_id: string;
+        name: string;
+        role: string;
+      }>(sql`
+        select link.resource_id, r.name, t.role
+          from week_template_row_resource link
+          join resource r on r.id = link.resource_id
+          join organization_resource_type t on t.id = r.resource_type_id
+         where link.row_id = ${row.id}
+         order by link.created_at, link.resource_id
       `);
+      const resourceIds = links.rows.map((link) => link.resource_id);
+      const offerings = links.rows
+        .filter((link) => link.role === 'offering')
+        .map((link) => link.name);
       result.push({
         rowId: row.id,
+        kind: row.kind,
         weekday: row.weekday,
         startTime: row.start_time,
         durationMinutes: row.duration_minutes,
-        hallId: row.hall_id,
-        classTypeId: row.class_type_id,
-        classTypeName: row.class_type_name,
+        placeResourceId: row.place_resource_id,
+        resourceIds,
         audience: row.audience,
         format: row.format,
         places: row.places,
-        trainerIds: trainers.rows.map((trainer) => trainer.trainer_id),
+        note: row.note,
+        blocksAll: row.blocks_all,
+        title: slotTitle(row.kind, offerings, row.note),
       });
     }
     return result;
@@ -319,32 +343,34 @@ export class WeeksService {
 
   private async existing(organizationId: string, span: Span) {
     const rows = await this.db.execute<{
-      hall_id: string;
+      id: string;
+      kind: SlotKind;
+      place_resource_id: string;
       date: string;
       start_time: string;
       duration_minutes: number;
-      class_type_id: string;
-      audience: ClassFields['audience'];
-      format: ClassFields['format'];
+      audience: SlotFields['audience'];
+      format: SlotFields['format'];
       places: number | null;
-      cancelled: boolean;
-      id: string;
+      note: string | null;
+      blocks_all: boolean;
     }>(sql`
-      select id, hall_id, to_char(date, 'YYYY-MM-DD') as date,
-             to_char(start_time, 'HH24:MI') as start_time,
-             duration_minutes, class_type_id, audience, format, places, cancelled
-        from scheduled_class
+      select id, kind, place_resource_id, to_char(date, 'YYYY-MM-DD') as date,
+             to_char(start_time, 'HH24:MI') as start_time, duration_minutes,
+             audience, format, places, note, blocks_all
+        from schedule_slot
        where organization_id = ${organizationId}
          and date between ${span.start}::date and ${span.end}::date
     `);
     const result = [];
     for (const row of rows.rows) {
-      const trainers = await this.db.execute<{ trainer_id: string }>(sql`
-        select trainer_id from scheduled_class_trainer where class_id = ${row.id}
+      const links = await this.db.execute<{ resource_id: string }>(sql`
+        select resource_id from schedule_slot_resource
+         where slot_id = ${row.id} and role <> 'place'
       `);
       result.push({
         ...row,
-        trainerIds: trainers.rows.map((trainer) => trainer.trainer_id),
+        resourceIds: links.rows.map((link) => link.resource_id),
       });
     }
     return result;
@@ -353,21 +379,22 @@ export class WeeksService {
   private async clearable(
     organizationId: string,
     span: Span,
-    hallIds: string[] | null,
+    placeResourceIds: string[] | null,
   ): Promise<string[]> {
-    const halls =
-      hallIds === null
+    if (placeResourceIds !== null && placeResourceIds.length === 0) return [];
+    const places =
+      placeResourceIds === null
         ? sql``
-        : sql`and hall_id in (${sql.join(
-            hallIds.map((id) => sql`${id}`),
+        : sql`and place_resource_id in (${sql.join(
+            placeResourceIds.map((id) => sql`${id}`),
             sql`, `,
           )})`;
     const rows = await this.db.execute<{ id: string }>(sql`
-      select id from scheduled_class
+      select id from schedule_slot
        where organization_id = ${organizationId}
          and date between ${span.start}::date and ${span.end}::date
          and starts_at > now()
-         ${halls}
+         ${places}
     `);
     return rows.rows.map((row) => row.id);
   }
@@ -401,32 +428,37 @@ export class WeeksService {
     return { start, end };
   }
 
-  private async assertHalls(organizationId: string, hallIds: string[] | null) {
-    if (hallIds === null) return;
-    if (hallIds.length === 0) {
+  private async assertPlaces(
+    organizationId: string,
+    placeResourceIds: string[] | null,
+  ) {
+    if (placeResourceIds === null) return;
+    if (placeResourceIds.length === 0) {
       throw ApiError.validation([
         {
           code: FieldErrorCode.INVALID_VALUE,
-          field: 'hallIds',
-          message: 'Choose halls, or omit the list for every hall',
+          field: 'placeResourceIds',
+          message: 'Choose places, or omit the list for every place',
         },
       ]);
     }
     const rows = await this.db.execute<{ id: string }>(sql`
-      select id from resource
-       where organization_id = ${organizationId}
-         and type is not null
-         and id in (${sql.join(
-           hallIds.map((id) => sql`${id}`),
+      select r.id
+        from resource r
+        join organization_resource_type t on t.id = r.resource_type_id
+       where r.organization_id = ${organizationId}
+         and t.role = 'place'
+         and r.id in (${sql.join(
+           placeResourceIds.map((id) => sql`${id}`),
            sql`, `,
          )})
     `);
-    if (rows.rows.length !== hallIds.length) {
+    if (rows.rows.length !== placeResourceIds.length) {
       throw ApiError.validation([
         {
           code: FieldErrorCode.INVALID_VALUE,
-          field: 'hallIds',
-          message: 'Choose halls of this studio',
+          field: 'placeResourceIds',
+          message: 'Choose places of this organization',
         },
       ]);
     }
@@ -445,28 +477,32 @@ interface Span {
 
 function same(
   existing: {
-    hall_id: string;
+    kind: SlotKind;
+    place_resource_id: string;
     date: string;
     start_time: string;
     duration_minutes: number;
-    class_type_id: string;
-    audience: string;
-    format: string;
+    audience: SlotFields['audience'];
+    format: SlotFields['format'];
     places: number | null;
-    trainerIds: string[];
+    note: string | null;
+    blocks_all: boolean;
+    resourceIds: string[];
   },
-  item: ClassFields,
+  item: Occurrence,
 ): boolean {
   return (
-    existing.hall_id === item.hallId &&
+    existing.kind === item.kind &&
+    existing.place_resource_id === item.placeResourceId &&
     existing.date === item.date &&
     existing.start_time === item.startTime &&
     existing.duration_minutes === item.durationMinutes &&
-    existing.class_type_id === item.classTypeId &&
     existing.audience === item.audience &&
     existing.format === item.format &&
     existing.places === item.places &&
-    sameSet(existing.trainerIds, item.trainerIds)
+    existing.note === item.note &&
+    existing.blocks_all === item.blocksAll &&
+    sameSet(existing.resourceIds, item.resourceIds)
   );
 }
 
@@ -493,7 +529,7 @@ function covers(
 function alreadyStarted(): ApiError {
   return new ApiError({
     statusCode: 409,
-    code: 'CLASS_ALREADY_STARTED',
-    message: 'The class has already started',
+    code: 'SLOT_ALREADY_STARTED',
+    message: 'The slot has already started',
   });
 }

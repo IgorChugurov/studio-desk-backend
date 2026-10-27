@@ -131,39 +131,69 @@ CREATE TABLE "role_section" (
       ))
 );
 --> statement-breakpoint
-CREATE TABLE "scheduled_class" (
+CREATE TABLE "schedule_slot" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
-	"hall_id" uuid NOT NULL,
-	"class_type_id" uuid NOT NULL,
+	"kind" text NOT NULL,
+	"place_resource_id" uuid NOT NULL,
 	"date" date NOT NULL,
 	"start_time" time NOT NULL,
 	"duration_minutes" integer NOT NULL,
-	"audience" text NOT NULL,
-	"format" text NOT NULL,
+	"audience" text,
+	"format" text,
 	"places" integer,
-	"cancelled" boolean DEFAULT false NOT NULL,
+	"note" text,
+	"blocks_all" boolean DEFAULT false NOT NULL,
+	"status" text DEFAULT 'planned' NOT NULL,
+	"occupies_resources" boolean DEFAULT true NOT NULL,
 	"starts_at" timestamp with time zone NOT NULL,
 	"ends_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "scheduled_class_audience" CHECK ("scheduled_class"."audience" in ('group', 'one_person')),
-	CONSTRAINT "scheduled_class_format" CHECK ("scheduled_class"."format" in ('offline', 'offline_and_online', 'online_only')),
-	CONSTRAINT "scheduled_class_places" CHECK ("scheduled_class"."places" is null or "scheduled_class"."places" >= 1),
-	CONSTRAINT "scheduled_class_ends_after_start" CHECK ("scheduled_class"."ends_at" > "scheduled_class"."starts_at"),
-	CONSTRAINT "scheduled_class_duration" CHECK ("scheduled_class"."duration_minutes" between 5 and 240 and "scheduled_class"."duration_minutes" % 5 = 0),
-	CONSTRAINT "scheduled_class_clock" CHECK (extract(second from "scheduled_class"."start_time") = 0
-        and extract(minute from "scheduled_class"."start_time")::int % 5 = 0
-        and (extract(hour from "scheduled_class"."start_time") * 60 + extract(minute from "scheduled_class"."start_time") + "scheduled_class"."duration_minutes") <= 1440)
+	CONSTRAINT "schedule_slot_kind" CHECK ("schedule_slot"."kind" in ('service', 'block')),
+	CONSTRAINT "schedule_slot_status" CHECK ("schedule_slot"."status" in ('planned', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show')),
+	CONSTRAINT "schedule_slot_audience" CHECK ("schedule_slot"."audience" is null or "schedule_slot"."audience" in ('group', 'one_person')),
+	CONSTRAINT "schedule_slot_format" CHECK ("schedule_slot"."format" is null or "schedule_slot"."format" in ('offline', 'offline_and_online', 'online_only')),
+	CONSTRAINT "schedule_slot_places" CHECK ("schedule_slot"."places" is null or "schedule_slot"."places" >= 1),
+	CONSTRAINT "schedule_slot_note" CHECK ("schedule_slot"."note" is null or (
+        "schedule_slot"."note" = btrim("schedule_slot"."note") and char_length("schedule_slot"."note") > 0
+      )),
+	CONSTRAINT "schedule_slot_ends_after_start" CHECK ("schedule_slot"."ends_at" > "schedule_slot"."starts_at"),
+	CONSTRAINT "schedule_slot_duration" CHECK ("schedule_slot"."duration_minutes" between 5 and 1440 and "schedule_slot"."duration_minutes" % 5 = 0),
+	CONSTRAINT "schedule_slot_clock" CHECK (extract(second from "schedule_slot"."start_time") = 0
+        and extract(minute from "schedule_slot"."start_time")::int % 5 = 0
+        and (extract(hour from "schedule_slot"."start_time") * 60 + extract(minute from "schedule_slot"."start_time") + "schedule_slot"."duration_minutes") <= 1440),
+	CONSTRAINT "schedule_slot_shape" CHECK ((
+        "schedule_slot"."kind" = 'service'
+        and "schedule_slot"."audience" is not null
+        and "schedule_slot"."format" is not null
+        and "schedule_slot"."note" is null
+        and "schedule_slot"."blocks_all" = false
+      ) or (
+        "schedule_slot"."kind" = 'block'
+        and "schedule_slot"."audience" is null
+        and "schedule_slot"."format" is null
+        and "schedule_slot"."places" is null
+      )),
+	CONSTRAINT "schedule_slot_occupies" CHECK ((
+        "schedule_slot"."status" in ('planned', 'confirmed', 'in_progress', 'completed')
+        and "schedule_slot"."occupies_resources"
+      ) or (
+        "schedule_slot"."status" in ('cancelled', 'no_show')
+        and not "schedule_slot"."occupies_resources"
+      ))
 );
 --> statement-breakpoint
-CREATE TABLE "scheduled_class_trainer" (
+CREATE TABLE "schedule_slot_resource" (
 	"organization_id" uuid NOT NULL,
-	"class_id" uuid NOT NULL,
-	"trainer_id" uuid NOT NULL,
+	"slot_id" uuid NOT NULL,
+	"resource_id" uuid NOT NULL,
+	"role" text NOT NULL,
+	"enforce_no_overlap" boolean NOT NULL,
 	"during" "tstzrange",
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "scheduled_class_trainer_class_id_trainer_id_pk" PRIMARY KEY("class_id","trainer_id")
+	CONSTRAINT "schedule_slot_resource_slot_id_resource_id_pk" PRIMARY KEY("slot_id","resource_id"),
+	CONSTRAINT "schedule_slot_resource_role" CHECK ("schedule_slot_resource"."role" in ('place', 'resource', 'offering'))
 );
 --> statement-breakpoint
 CREATE TABLE "week_template" (
@@ -179,32 +209,50 @@ CREATE TABLE "week_template_row" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
 	"template_id" uuid NOT NULL,
+	"kind" text NOT NULL,
 	"weekday" text NOT NULL,
 	"start_time" time NOT NULL,
 	"duration_minutes" integer NOT NULL,
-	"hall_id" uuid NOT NULL,
-	"class_type_id" uuid NOT NULL,
-	"audience" text NOT NULL,
-	"format" text NOT NULL,
+	"place_resource_id" uuid NOT NULL,
+	"audience" text,
+	"format" text,
 	"places" integer,
+	"note" text,
+	"blocks_all" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "week_template_row_kind" CHECK ("week_template_row"."kind" in ('service', 'block')),
 	CONSTRAINT "week_template_row_weekday" CHECK ("week_template_row"."weekday" in ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')),
-	CONSTRAINT "week_template_row_audience" CHECK ("week_template_row"."audience" in ('group', 'one_person')),
-	CONSTRAINT "week_template_row_format" CHECK ("week_template_row"."format" in ('offline', 'offline_and_online', 'online_only')),
+	CONSTRAINT "week_template_row_audience" CHECK ("week_template_row"."audience" is null or "week_template_row"."audience" in ('group', 'one_person')),
+	CONSTRAINT "week_template_row_format" CHECK ("week_template_row"."format" is null or "week_template_row"."format" in ('offline', 'offline_and_online', 'online_only')),
 	CONSTRAINT "week_template_row_places" CHECK ("week_template_row"."places" is null or "week_template_row"."places" >= 1),
-	CONSTRAINT "week_template_row_duration" CHECK ("week_template_row"."duration_minutes" between 5 and 240 and "week_template_row"."duration_minutes" % 5 = 0),
+	CONSTRAINT "week_template_row_note" CHECK ("week_template_row"."note" is null or (
+        "week_template_row"."note" = btrim("week_template_row"."note") and char_length("week_template_row"."note") > 0
+      )),
+	CONSTRAINT "week_template_row_duration" CHECK ("week_template_row"."duration_minutes" between 5 and 1440 and "week_template_row"."duration_minutes" % 5 = 0),
 	CONSTRAINT "week_template_row_clock" CHECK (extract(second from "week_template_row"."start_time") = 0
         and extract(minute from "week_template_row"."start_time")::int % 5 = 0
-        and (extract(hour from "week_template_row"."start_time") * 60 + extract(minute from "week_template_row"."start_time") + "week_template_row"."duration_minutes") <= 1440)
+        and (extract(hour from "week_template_row"."start_time") * 60 + extract(minute from "week_template_row"."start_time") + "week_template_row"."duration_minutes") <= 1440),
+	CONSTRAINT "week_template_row_shape" CHECK ((
+        "week_template_row"."kind" = 'service'
+        and "week_template_row"."audience" is not null
+        and "week_template_row"."format" is not null
+        and "week_template_row"."note" is null
+        and "week_template_row"."blocks_all" = false
+      ) or (
+        "week_template_row"."kind" = 'block'
+        and "week_template_row"."audience" is null
+        and "week_template_row"."format" is null
+        and "week_template_row"."places" is null
+      ))
 );
 --> statement-breakpoint
-CREATE TABLE "week_template_row_trainer" (
+CREATE TABLE "week_template_row_resource" (
 	"organization_id" uuid NOT NULL,
 	"row_id" uuid NOT NULL,
-	"trainer_id" uuid NOT NULL,
+	"resource_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "week_template_row_trainer_row_id_trainer_id_pk" PRIMARY KEY("row_id","trainer_id")
+	CONSTRAINT "week_template_row_resource_row_id_resource_id_pk" PRIMARY KEY("row_id","resource_id")
 );
 --> statement-breakpoint
 CREATE TABLE "organization" (
@@ -352,20 +400,18 @@ ALTER TABLE "resource_relation" ADD CONSTRAINT "resource_relation_resource_b_id_
 ALTER TABLE "session" ADD CONSTRAINT "session_platform_administrator_id_platform_administrator_id_fk" FOREIGN KEY ("platform_administrator_id") REFERENCES "public"."platform_administrator"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "handoff_code" ADD CONSTRAINT "handoff_code_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "handoff_code" ADD CONSTRAINT "handoff_code_platform_administrator_id_platform_administrator_id_fk" FOREIGN KEY ("platform_administrator_id") REFERENCES "public"."platform_administrator"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_hall_id_resource_id_fk" FOREIGN KEY ("hall_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_class_type_id_resource_id_fk" FOREIGN KEY ("class_type_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scheduled_class_trainer" ADD CONSTRAINT "scheduled_class_trainer_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scheduled_class_trainer" ADD CONSTRAINT "scheduled_class_trainer_class_id_scheduled_class_id_fk" FOREIGN KEY ("class_id") REFERENCES "public"."scheduled_class"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scheduled_class_trainer" ADD CONSTRAINT "scheduled_class_trainer_trainer_id_resource_id_fk" FOREIGN KEY ("trainer_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_slot" ADD CONSTRAINT "schedule_slot_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_slot" ADD CONSTRAINT "schedule_slot_place_resource_id_resource_id_fk" FOREIGN KEY ("place_resource_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_slot_resource" ADD CONSTRAINT "schedule_slot_resource_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_slot_resource" ADD CONSTRAINT "schedule_slot_resource_slot_id_schedule_slot_id_fk" FOREIGN KEY ("slot_id") REFERENCES "public"."schedule_slot"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "schedule_slot_resource" ADD CONSTRAINT "schedule_slot_resource_resource_id_resource_id_fk" FOREIGN KEY ("resource_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "week_template" ADD CONSTRAINT "week_template_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_template_id_week_template_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."week_template"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_hall_id_resource_id_fk" FOREIGN KEY ("hall_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_class_type_id_resource_id_fk" FOREIGN KEY ("class_type_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "week_template_row_trainer" ADD CONSTRAINT "week_template_row_trainer_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "week_template_row_trainer" ADD CONSTRAINT "week_template_row_trainer_row_id_week_template_row_id_fk" FOREIGN KEY ("row_id") REFERENCES "public"."week_template_row"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "week_template_row_trainer" ADD CONSTRAINT "week_template_row_trainer_trainer_id_resource_id_fk" FOREIGN KEY ("trainer_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_place_resource_id_resource_id_fk" FOREIGN KEY ("place_resource_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "week_template_row_resource" ADD CONSTRAINT "week_template_row_resource_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "week_template_row_resource" ADD CONSTRAINT "week_template_row_resource_row_id_week_template_row_id_fk" FOREIGN KEY ("row_id") REFERENCES "public"."week_template_row"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "week_template_row_resource" ADD CONSTRAINT "week_template_row_resource_resource_id_resource_id_fk" FOREIGN KEY ("resource_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization" ADD CONSTRAINT "organization_currency_currency_code_fk" FOREIGN KEY ("currency") REFERENCES "public"."currency"("code") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization" ADD CONSTRAINT "organization_preset_id_preset_id_fk" FOREIGN KEY ("preset_id") REFERENCES "public"."preset"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_resource_type" ADD CONSTRAINT "organization_resource_type_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -382,15 +428,15 @@ CREATE UNIQUE INDEX "resource_file_resource_id_index_unique" ON "resource_file" 
 CREATE INDEX "resource_relation_organization_id_idx" ON "resource_relation" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "resource_relation_resource_b_id_idx" ON "resource_relation" USING btree ("resource_b_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "platform_administrator_one_row" ON "platform_administrator" ((true));--> statement-breakpoint
-CREATE INDEX "scheduled_class_organization_id_idx" ON "scheduled_class" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "scheduled_class_hall_date_idx" ON "scheduled_class" USING btree ("hall_id","date");--> statement-breakpoint
-CREATE INDEX "scheduled_class_trainer_organization_id_idx" ON "scheduled_class_trainer" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "scheduled_class_trainer_trainer_id_idx" ON "scheduled_class_trainer" USING btree ("trainer_id");--> statement-breakpoint
+CREATE INDEX "schedule_slot_organization_id_idx" ON "schedule_slot" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "schedule_slot_place_date_idx" ON "schedule_slot" USING btree ("place_resource_id","date");--> statement-breakpoint
+CREATE INDEX "schedule_slot_resource_organization_id_idx" ON "schedule_slot_resource" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "schedule_slot_resource_resource_id_idx" ON "schedule_slot_resource" USING btree ("resource_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "week_template_organization_name_unique" ON "week_template" USING btree ("organization_id","name");--> statement-breakpoint
 CREATE INDEX "week_template_organization_id_idx" ON "week_template" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "week_template_row_template_id_idx" ON "week_template_row" USING btree ("template_id");--> statement-breakpoint
 CREATE INDEX "week_template_row_organization_id_idx" ON "week_template_row" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "week_template_row_trainer_organization_id_idx" ON "week_template_row_trainer" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "week_template_row_resource_organization_id_idx" ON "week_template_row_resource" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_subdomain_unique" ON "organization" USING btree ("subdomain");--> statement-breakpoint
 CREATE INDEX "organization_owner_email_idx" ON "organization" USING btree ("owner_email");--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_custom_domain_unique" ON "organization" USING btree ("custom_domain") WHERE "organization"."custom_domain" is not null;--> statement-breakpoint
@@ -405,9 +451,7 @@ CREATE UNIQUE INDEX "preset_name_unique" ON "preset" USING btree ("name");
 --> statement-breakpoint
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 --> statement-breakpoint
-ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_hall_no_overlap" EXCLUDE USING gist ("hall_id" WITH =, tstzrange("starts_at", "ends_at", '[)') WITH &&) WHERE (NOT "cancelled");
---> statement-breakpoint
-ALTER TABLE "scheduled_class_trainer" ADD CONSTRAINT "scheduled_class_trainer_no_overlap" EXCLUDE USING gist ("trainer_id" WITH =, "during" WITH &&) WHERE ("during" IS NOT NULL);
+ALTER TABLE "schedule_slot_resource" ADD CONSTRAINT "schedule_slot_resource_no_overlap" EXCLUDE USING gist ("resource_id" WITH =, "during" WITH &&) WHERE ("during" IS NOT NULL AND "enforce_no_overlap" = true);
 --> statement-breakpoint
 GRANT SELECT ON "currency" TO studio_api;
 --> statement-breakpoint
@@ -451,9 +495,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON "preset" TO platform_api;
 --> statement-breakpoint
 GRANT SELECT ON "role_section" TO studio_api;
 --> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON "scheduled_class" TO studio_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON "schedule_slot" TO studio_api;
 --> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON "scheduled_class_trainer" TO studio_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON "schedule_slot_resource" TO studio_api;
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON "session" TO platform_api;
 --> statement-breakpoint
@@ -471,7 +515,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON "week_template" TO studio_api;
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE, DELETE ON "week_template_row" TO studio_api;
 --> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON "week_template_row_trainer" TO studio_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON "week_template_row_resource" TO studio_api;
 --> statement-breakpoint
 GRANT UPDATE ("language", "country", "currency", "time_zone", "schedule_config", "billing_config", "updated_at") ON "organization" TO studio_api;
 --> statement-breakpoint

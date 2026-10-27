@@ -29,14 +29,14 @@ describe('schedule clock and weeks', () => {
   });
 
   it('uses the singular sentence only when the first count is 1', () => {
-    expect(appliedText(1)).toBe('Template applied: 1 class added');
-    expect(appliedText(0)).toBe('Template applied: 0 classes added');
-    expect(clearPreviewText(1)).toBe('1 class will be deleted');
+    expect(appliedText(1)).toBe('Template applied: 1 slot added');
+    expect(appliedText(0)).toBe('Template applied: 0 slots added');
+    expect(clearPreviewText(1)).toBe('1 slot will be deleted');
     expect(replacePreviewText(1, 3)).toBe(
-      '1 class will be deleted and 3 created',
+      '1 slot will be deleted and 3 created',
     );
     expect(replacePreviewText(2, 1)).toBe(
-      '2 classes will be deleted and 1 created',
+      '2 slots will be deleted and 1 created',
     );
   });
 });

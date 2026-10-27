@@ -1,37 +1,54 @@
 import { sql } from 'drizzle-orm';
-import { ApiError, FieldErrorCode } from '../../../common/errors/api-error.js';
+import {
+  ApiError,
+  type ScheduleConflict,
+} from '../../../common/errors/api-error.js';
+import type { ScheduleConfig } from '../../../common/organization-config.js';
 import type { Database } from '../../../database/database.module.js';
-import { endClock, hallBusyText, trainerBusyText } from './schedule-time.js';
+import { busyMessage, endClock } from './schedule-time.js';
+import {
+  type CatalogResource,
+  type CatalogType,
+  type ConflictMode,
+  type ResourceRole,
+  type SlotFields,
+  type SlotKind,
+  slotTitle,
+} from './schedule-validate.js';
 
 export type Sql = Pick<Database, 'execute'>;
 
-export interface ClassFields {
-  hallId: string;
-  date: string;
-  startTime: string;
-  durationMinutes: number;
-  trainerIds: string[];
-  classTypeId: string;
-  audience: 'group' | 'one_person';
-  format: 'offline' | 'offline_and_online' | 'online_only';
-  places: number | null;
-}
+export type SlotStatus =
+  | 'planned'
+  | 'confirmed'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show';
 
-export interface ClassView extends ClassFields {
+export interface SlotView extends SlotFields {
   id: string;
-  cancelled: boolean;
+  date: string;
+  status: SlotStatus;
+  occupiesResources: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-interface BusyRow extends Record<string, unknown> {
-  class_id: string;
-  class_type_name: string;
-  hall_name: string;
-  trainer_name: string | null;
-  start_time: string;
-  duration_minutes: number;
-  kind: 'hall' | 'trainer';
+export interface TimeConflict extends ScheduleConflict {
+  slotId: string;
+  started: boolean;
+}
+
+const NONE = '00000000-0000-0000-0000-000000000000';
+
+export function occupiesOf(status: SlotStatus): boolean {
+  return (
+    status === 'planned' ||
+    status === 'confirmed' ||
+    status === 'in_progress' ||
+    status === 'completed'
+  );
 }
 
 export async function studioToday(
@@ -44,125 +61,90 @@ export async function studioToday(
      where id = ${organizationId}
   `);
   const today = rows.rows[0]?.today;
-  if (!today) throw ApiError.notFound('Studio not found');
+  if (!today) throw ApiError.notFound('Organization not found');
   return today;
 }
 
-export async function hallOf(
+export async function readScheduleConfig(
   db: Sql,
   organizationId: string,
-  hallId: string,
+): Promise<ScheduleConfig> {
+  const rows = await db.execute<{ schedule_config: ScheduleConfig }>(sql`
+    select schedule_config from organization where id = ${organizationId}
+  `);
+  const config = rows.rows[0]?.schedule_config;
+  if (!config) throw ApiError.notFound('Organization not found');
+  return config;
+}
+
+export async function loadCatalog(
+  db: Sql,
+  organizationId: string,
 ): Promise<{
-  id: string;
-  type: 'ordinary' | 'virtual';
-  name: string;
-  timeZone: string;
+  resources: Map<string, CatalogResource>;
+  places: CatalogResource[];
+  types: CatalogType[];
 }> {
-  const rows = await db.execute<{
+  const typeRows = await db.execute<{
     id: string;
-    type: 'ordinary' | 'virtual';
-    name: string;
-    time_zone: string;
+    role: ResourceRole;
+    required: boolean;
+    multiple: boolean;
+    conflict_mode: ConflictMode;
+    label: string;
   }>(sql`
-    select id, type, name, time_zone
-      from resource
-     where id = ${hallId} and organization_id = ${organizationId}
-       and type is not null
-  `);
-  const row = rows.rows[0];
-  if (!row) {
-    throw ApiError.validation([
-      {
-        code: FieldErrorCode.INVALID_VALUE,
-        field: 'hallId',
-        message: 'Choose a hall of this studio',
-      },
-    ]);
-  }
-  return {
-    id: row.id,
-    type: row.type,
-    name: row.name,
-    timeZone: row.time_zone,
-  };
-}
-
-export function placeErrors(
-  hallType: 'ordinary' | 'virtual',
-  input: Pick<ClassFields, 'format' | 'audience' | 'places'>,
-): { code: string; field: string; message: string }[] {
-  const errors: { code: string; field: string; message: string }[] = [];
-  if (hallType === 'virtual' && input.format !== 'online_only') {
-    errors.push({
-      code: FieldErrorCode.INVALID_VALUE,
-      field: 'format',
-      message: 'A virtual hall is online only',
-    });
-  }
-  const placesForbidden =
-    hallType === 'virtual' ||
-    input.audience === 'one_person' ||
-    input.format === 'online_only';
-  if (placesForbidden && input.places !== null) {
-    errors.push({
-      code: FieldErrorCode.INVALID_VALUE,
-      field: 'places',
-      message: 'Enter the number of places',
-    });
-  }
-  if (!placesForbidden && input.places === null) {
-    errors.push({
-      code: FieldErrorCode.REQUIRED,
-      field: 'places',
-      message: 'Enter the number of places',
-    });
-  }
-  if (!placesForbidden && input.places !== null && input.places < 1) {
-    errors.push({
-      code: FieldErrorCode.INVALID_VALUE,
-      field: 'places',
-      message: 'Enter the number of places',
-    });
-  }
-  return errors;
-}
-
-export async function assertClassRefs(
-  db: Sql,
-  organizationId: string,
-  input: Pick<ClassFields, 'classTypeId' | 'trainerIds'>,
-): Promise<void> {
-  const types = await db.execute<{ id: string }>(sql`
-    select id from resource
-     where id = ${input.classTypeId} and organization_id = ${organizationId}
-       and default_duration is not null
-  `);
-  const trainers = await db.execute<{ id: string }>(sql`
-    select id from resource
+    select id, role, required, multiple, conflict_mode,
+           labels->'en'->>'singular' as label
+      from organization_resource_type
      where organization_id = ${organizationId}
-       and type is null
-       and default_duration is null
-       and id in (${sql.join(
-         input.trainerIds.map((id) => sql`${id}`),
-         sql`, `,
-       )})
+     order by sort_order
   `);
-  const errors = [];
-  if (!types.rows[0]) {
-    errors.push({
-      code: FieldErrorCode.INVALID_VALUE,
-      field: 'classTypeId',
-      message: 'Choose a class type of this studio',
+  const types: CatalogType[] = typeRows.rows.map((row) => ({
+    id: row.id,
+    role: row.role,
+    required: row.required,
+    multiple: row.multiple,
+    conflictMode: row.conflict_mode,
+    label: row.label,
+  }));
+  const resourceRows = await db.execute<{
+    id: string;
+    name: string;
+    type: 'ordinary' | 'virtual' | null;
+    time_zone: string | null;
+    type_id: string;
+    role: ResourceRole;
+    required: boolean;
+    multiple: boolean;
+    conflict_mode: ConflictMode;
+    label: string;
+  }>(sql`
+    select r.id, r.name, r.type, r.time_zone, t.id as type_id, t.role,
+           t.required, t.multiple, t.conflict_mode,
+           t.labels->'en'->>'singular' as label
+      from resource r
+      join organization_resource_type t on t.id = r.resource_type_id
+     where r.organization_id = ${organizationId}
+  `);
+  const resources = new Map<string, CatalogResource>();
+  for (const row of resourceRows.rows) {
+    resources.set(row.id, {
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      timeZone: row.time_zone,
+      typeId: row.type_id,
+      role: row.role,
+      required: row.required,
+      multiple: row.multiple,
+      conflictMode: row.conflict_mode,
+      label: row.label,
     });
   }
-  if (trainers.rows.length !== input.trainerIds.length) {
-    errors.push({
-      code: FieldErrorCode.INVALID_VALUE,
-      field: 'trainerIds',
-      message: 'Choose trainers of this studio',
-    });
-  }
-  if (errors.length > 0) throw ApiError.validation(errors);
+  const places = [...resources.values()].filter(
+    (resource) => resource.role === 'place',
+  );
+  return { resources, places, types };
 }
 
 export async function isPast(
@@ -177,446 +159,557 @@ export async function isPast(
   return rows.rows[0]?.past ?? false;
 }
 
-export async function insertClass(
+export async function insertSlot(
   db: Sql,
   organizationId: string,
-  input: ClassFields,
+  input: SlotFields & { date: string },
   timeZone: string,
+  links: CatalogResource[],
+  confirmOverlap: boolean,
 ): Promise<string> {
-  await assertFree(db, input, timeZone, null);
-  await db.execute(sql`savepoint class_write`);
+  await assertFree(db, organizationId, input, timeZone, null, confirmOverlap);
+  await db.execute(sql`savepoint slot_write`);
   try {
     const id = crypto.randomUUID();
     await db.execute(sql`
-      insert into scheduled_class (
-        id, organization_id, hall_id, class_type_id, date, start_time, duration_minutes,
-        audience, format, places, cancelled, starts_at, ends_at
+      insert into schedule_slot (
+        id, organization_id, kind, place_resource_id, date, start_time,
+        duration_minutes, audience, format, places, note, blocks_all,
+        status, occupies_resources, starts_at, ends_at
       ) values (
-        ${id}, ${organizationId}, ${input.hallId}, ${input.classTypeId},
+        ${id}, ${organizationId}, ${input.kind}, ${input.placeResourceId},
         ${input.date}::date, ${input.startTime}::time, ${input.durationMinutes},
-        ${input.audience}, ${input.format}, ${input.places}, false,
+        ${input.audience}, ${input.format}, ${input.places}, ${input.note},
+        ${input.blocksAll}, 'planned', true,
         (${input.date}::date + ${input.startTime}::time) at time zone ${timeZone},
         ((${input.date}::date + ${input.startTime}::time) at time zone ${timeZone})
           + (${String(input.durationMinutes)} || ' minutes')::interval
       )
     `);
-    await writeTrainers(db, organizationId, id, input.trainerIds, false);
-    await db.execute(sql`release savepoint class_write`);
+    await writeLinks(db, organizationId, id, links, true);
+    await db.execute(sql`release savepoint slot_write`);
     return id;
   } catch (error) {
-    await db.execute(sql`rollback to savepoint class_write`);
-    throw await busyFrom(db, error, input, timeZone, null);
+    if (isDeadlock(error)) throw error;
+    await db.execute(sql`rollback to savepoint slot_write`);
+    throw await busyFrom(
+      db,
+      error,
+      organizationId,
+      input,
+      timeZone,
+      null,
+      confirmOverlap,
+    );
   }
 }
 
-export async function rewriteClass(
+export async function rewriteSlot(
   db: Sql,
   organizationId: string,
-  classId: string,
-  input: ClassFields,
+  slotId: string,
+  input: SlotFields & { date: string; status: SlotStatus },
   timeZone: string,
+  links: CatalogResource[],
+  confirmOverlap: boolean,
 ): Promise<void> {
-  await assertFree(db, input, timeZone, classId);
-  await db.execute(sql`savepoint class_write`);
+  const occupies = occupiesOf(input.status);
+  if (occupies) {
+    await assertFree(
+      db,
+      organizationId,
+      input,
+      timeZone,
+      slotId,
+      confirmOverlap,
+    );
+  }
+  await db.execute(sql`savepoint slot_write`);
   try {
     await db.execute(sql`
-      update scheduled_class
-         set hall_id = ${input.hallId},
-             class_type_id = ${input.classTypeId},
+      update schedule_slot
+         set kind = ${input.kind},
+             place_resource_id = ${input.placeResourceId},
              date = ${input.date}::date,
              start_time = ${input.startTime}::time,
              duration_minutes = ${input.durationMinutes},
              audience = ${input.audience},
              format = ${input.format},
              places = ${input.places},
+             note = ${input.note},
+             blocks_all = ${input.blocksAll},
+             status = ${input.status},
+             occupies_resources = ${occupies},
              starts_at = (${input.date}::date + ${input.startTime}::time) at time zone ${timeZone},
              ends_at = ((${input.date}::date + ${input.startTime}::time) at time zone ${timeZone})
                + (${String(input.durationMinutes)} || ' minutes')::interval,
              updated_at = now()
-       where id = ${classId} and organization_id = ${organizationId}
+       where id = ${slotId} and organization_id = ${organizationId}
     `);
     await db.execute(sql`
-      delete from scheduled_class_trainer where class_id = ${classId}
+      delete from schedule_slot_resource where slot_id = ${slotId}
     `);
-    await writeTrainers(db, organizationId, classId, input.trainerIds, false);
-    await db.execute(sql`release savepoint class_write`);
+    await writeLinks(db, organizationId, slotId, links, occupies);
+    await db.execute(sql`release savepoint slot_write`);
   } catch (error) {
-    await db.execute(sql`rollback to savepoint class_write`);
-    throw await busyFrom(db, error, input, timeZone, classId);
+    if (isDeadlock(error)) throw error;
+    await db.execute(sql`rollback to savepoint slot_write`);
+    throw await busyFrom(
+      db,
+      error,
+      organizationId,
+      input,
+      timeZone,
+      slotId,
+      confirmOverlap,
+    );
   }
 }
 
-export async function setCancelled(
+export async function writeStatus(
   db: Sql,
-  classId: string,
-  cancelled: boolean,
+  slotId: string,
+  status: SlotStatus,
 ): Promise<void> {
-  if (!cancelled) {
-    const current = await readClassRow(db, classId);
-    if (!current) throw ApiError.notFound('Class not found');
-    await assertFree(db, current, current.timeZone, classId);
-  }
-  await db.execute(sql`savepoint class_write`);
+  const occupies = occupiesOf(status);
+  await db.execute(sql`savepoint slot_write`);
   try {
     await db.execute(sql`
-      update scheduled_class
-         set cancelled = ${cancelled}, updated_at = now()
-       where id = ${classId}
+      update schedule_slot
+         set status = ${status},
+             occupies_resources = ${occupies},
+             updated_at = now()
+       where id = ${slotId}
     `);
-    if (cancelled) {
-      await db.execute(sql`
-        update scheduled_class_trainer set during = null where class_id = ${classId}
-      `);
-    } else {
-      await db.execute(sql`
-        update scheduled_class_trainer t
-           set during = tstzrange(c.starts_at, c.ends_at, '[)')
-          from scheduled_class c
-         where t.class_id = c.id and c.id = ${classId}
-      `);
-    }
-    await db.execute(sql`release savepoint class_write`);
+    await db.execute(sql`
+      update schedule_slot_resource link
+         set during = case
+           when ${occupies} then tstzrange(s.starts_at, s.ends_at, '[)')
+           else null
+         end
+        from schedule_slot s
+       where link.slot_id = s.id and s.id = ${slotId}
+    `);
+    await db.execute(sql`release savepoint slot_write`);
   } catch (error) {
-    await db.execute(sql`rollback to savepoint class_write`);
-    const current = await readClassRow(db, classId);
-    if (!current) throw error;
-    throw await busyFrom(db, error, current, current.timeZone, classId);
+    if (isDeadlock(error)) throw error;
+    await db.execute(sql`rollback to savepoint slot_write`);
+    throw error;
   }
 }
 
-async function writeTrainers(
+export async function deleteSlot(db: Sql, slotId: string): Promise<void> {
+  await db.execute(sql`delete from schedule_slot where id = ${slotId}`);
+}
+
+export async function readSlot(
+  db: Sql,
+  slotId: string,
+): Promise<SlotView | undefined> {
+  const rows = await db.execute<{
+    id: string;
+    kind: SlotKind;
+    place_resource_id: string;
+    date: string;
+    start_time: string;
+    duration_minutes: number;
+    audience: SlotFields['audience'];
+    format: SlotFields['format'];
+    places: number | null;
+    note: string | null;
+    blocks_all: boolean;
+    status: SlotStatus;
+    occupies_resources: boolean;
+    created_at: Date;
+    updated_at: Date;
+  }>(sql`
+    select id, kind, place_resource_id, to_char(date, 'YYYY-MM-DD') as date,
+           to_char(start_time, 'HH24:MI') as start_time, duration_minutes,
+           audience, format, places, note, blocks_all, status, occupies_resources,
+           created_at, updated_at
+      from schedule_slot
+     where id = ${slotId}
+  `);
+  const row = rows.rows[0];
+  if (!row) return undefined;
+  const links = await db.execute<{ resource_id: string }>(sql`
+    select resource_id from schedule_slot_resource
+     where slot_id = ${slotId} and role <> 'place'
+     order by created_at, resource_id
+  `);
+  return {
+    id: row.id,
+    kind: row.kind,
+    placeResourceId: row.place_resource_id,
+    resourceIds: links.rows.map((link) => link.resource_id),
+    date: row.date,
+    startTime: row.start_time,
+    durationMinutes: row.duration_minutes,
+    audience: row.audience,
+    format: row.format,
+    places: row.places,
+    note: row.note,
+    blocksAll: row.blocks_all,
+    status: row.status,
+    occupiesResources: row.occupies_resources,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function retryDeadlock<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work();
+  } catch (error) {
+    if (!isDeadlock(error)) throw error;
+    return work();
+  }
+}
+
+export async function findConflicts(
   db: Sql,
   organizationId: string,
-  classId: string,
-  trainerIds: string[],
-  cancelled: boolean,
+  input: SlotFields & { date: string },
+  timeZone: string,
+  exceptId: string | null,
+  ignore: readonly string[] = [],
+): Promise<{ strict?: TimeConflict; warnings: TimeConflict[] }> {
+  const involved = [input.placeResourceId, ...input.resourceIds];
+  const except = exceptId ?? NONE;
+  const blocksAll = input.kind === 'block' && input.blocksAll;
+  const range = sql`tstzrange(
+    (${input.date}::date + ${input.startTime}::time) at time zone ${timeZone},
+    ((${input.date}::date + ${input.startTime}::time) at time zone ${timeZone})
+      + (${String(input.durationMinutes)} || ' minutes')::interval,
+    '[)'
+  )`;
+  const rows = await db.execute<{
+    id: string;
+    kind: SlotKind;
+    note: string | null;
+    blocks_all: boolean;
+    place_resource_id: string;
+    place_name: string;
+    start_time: string;
+    duration_minutes: number;
+    started: boolean;
+  }>(sql`
+    select s.id, s.kind, s.note, s.blocks_all, s.place_resource_id,
+           place.name as place_name,
+           to_char(s.start_time, 'HH24:MI') as start_time,
+           s.duration_minutes, s.starts_at <= now() as started
+      from schedule_slot s
+      join resource place on place.id = s.place_resource_id
+     where s.organization_id = ${organizationId}
+       and s.id <> ${except}
+       ${
+         ignore.length > 0
+           ? sql`and s.id not in (${uuidIn([...ignore])})`
+           : sql``
+       }
+       and s.occupies_resources
+       and tstzrange(s.starts_at, s.ends_at, '[)') && ${range}
+       and (
+         ${blocksAll}
+         or s.blocks_all
+         or exists (
+           select 1 from schedule_slot_resource link
+            where link.slot_id = s.id
+              and link.resource_id in (${uuidIn(involved)})
+         )
+       )
+     order by s.date, s.start_time, s.id
+  `);
+  if (rows.rows.length === 0) return { warnings: [] };
+  const links = await db.execute<{
+    slot_id: string;
+    resource_id: string;
+    role: ResourceRole;
+    name: string;
+    conflict_mode: ConflictMode;
+  }>(sql`
+    select link.slot_id, link.resource_id, link.role, r.name, t.conflict_mode
+      from schedule_slot_resource link
+      join resource r on r.id = link.resource_id
+      join organization_resource_type t on t.id = r.resource_type_id
+     where link.slot_id in (${uuidIn(rows.rows.map((row) => row.id))})
+     order by link.created_at, link.resource_id
+  `);
+  const bySlot = new Map<string, (typeof links.rows)[number][]>();
+  for (const link of links.rows) {
+    const list = bySlot.get(link.slot_id) ?? [];
+    list.push(link);
+    bySlot.set(link.slot_id, list);
+  }
+  const involvedSet = new Set(involved);
+  let strict: TimeConflict | undefined;
+  const warnings: TimeConflict[] = [];
+  for (const row of rows.rows) {
+    const slotLinks = bySlot.get(row.id) ?? [];
+    const shared = slotLinks.filter((link) =>
+      involvedSet.has(link.resource_id),
+    );
+    const strictLink = shared.find((link) => link.conflict_mode === 'strict');
+    const warningLink = shared.find((link) => link.conflict_mode === 'warning');
+    const offerings = slotLinks
+      .filter((link) => link.role === 'offering')
+      .map((link) => link.name);
+    const title = slotTitle(row.kind, offerings, row.note);
+    const start = row.start_time.slice(0, 5);
+    const end = endClock(start, row.duration_minutes);
+    const blockOverlap =
+      row.kind === 'block' && (row.blocks_all || shared.length > 0);
+    if (strictLink) {
+      strict ??= conflictOf(
+        strictLink.resource_id,
+        strictLink.name,
+        start,
+        end,
+        title,
+        row.id,
+        row.started,
+      );
+      continue;
+    }
+    if (warningLink || blockOverlap || blocksAll) {
+      const resourceId = warningLink?.resource_id ?? row.place_resource_id;
+      const resourceName = warningLink?.name ?? row.place_name;
+      warnings.push(
+        conflictOf(
+          resourceId,
+          resourceName,
+          start,
+          end,
+          title,
+          row.id,
+          row.started,
+        ),
+      );
+    }
+  }
+  return { strict, warnings };
+}
+
+export async function zoneConflict(
+  db: Sql,
+  placeId: string,
+  timeZone: string,
+): Promise<ScheduleConflict | undefined> {
+  const rows = await db.execute<{
+    slot_id: string;
+    resource_id: string;
+    resource_name: string;
+    start_time: string;
+    duration_minutes: number;
+    kind: SlotKind;
+    note: string | null;
+    offerings: string | null;
+  }>(sql`
+    with moved as (
+      select s.id,
+             (s.date + s.start_time) at time zone ${timeZone} as starts_at,
+             (s.date + s.start_time) at time zone ${timeZone}
+               + (s.duration_minutes || ' minutes')::interval as ends_at
+        from schedule_slot s
+       where s.place_resource_id = ${placeId}
+         and s.occupies_resources
+    )
+    select other.id as slot_id, res.id as resource_id, res.name as resource_name,
+           to_char(other.start_time, 'HH24:MI') as start_time,
+           other.duration_minutes, other.kind, other.note,
+           (
+             select string_agg(off.name, ', ' order by link.created_at, off.id)
+               from schedule_slot_resource link
+               join resource off on off.id = link.resource_id
+              where link.slot_id = other.id and link.role = 'offering'
+           ) as offerings
+      from moved m
+      join schedule_slot_resource mine
+        on mine.slot_id = m.id and mine.enforce_no_overlap
+      join schedule_slot_resource theirs
+        on theirs.resource_id = mine.resource_id
+       and theirs.slot_id <> m.id
+       and theirs.enforce_no_overlap
+       and theirs.during is not null
+      join schedule_slot other
+        on other.id = theirs.slot_id and other.occupies_resources
+      join resource res on res.id = mine.resource_id
+     where other.place_resource_id <> ${placeId}
+       and tstzrange(m.starts_at, m.ends_at, '[)') && theirs.during
+     order by other.date, other.start_time, other.id, res.name
+     limit 1
+  `);
+  const row = rows.rows[0];
+  if (!row) return undefined;
+  const start = row.start_time.slice(0, 5);
+  return {
+    resourceId: row.resource_id,
+    resourceName: row.resource_name,
+    start,
+    end: endClock(start, row.duration_minutes),
+    title: slotTitle(
+      row.kind,
+      row.offerings ? row.offerings.split(', ') : [],
+      row.note,
+    ),
+    slotId: row.slot_id,
+  };
+}
+
+export async function retimePlace(
+  db: Sql,
+  placeId: string,
+  timeZone: string,
 ): Promise<void> {
-  for (let index = 0; index < trainerIds.length; index += 1) {
-    const trainerId = trainerIds[index]!;
+  await db.execute(sql`savepoint slot_write`);
+  try {
     await db.execute(sql`
-      insert into scheduled_class_trainer (
-        organization_id, class_id, trainer_id, during, created_at
+      update schedule_slot
+         set starts_at = (date + start_time) at time zone ${timeZone},
+             ends_at = (date + start_time) at time zone ${timeZone}
+               + (duration_minutes || ' minutes')::interval,
+             updated_at = now()
+       where place_resource_id = ${placeId}
+    `);
+    await db.execute(sql`
+      update schedule_slot_resource link
+         set during = case
+           when s.occupies_resources then tstzrange(s.starts_at, s.ends_at, '[)')
+           else null
+         end
+        from schedule_slot s
+       where link.slot_id = s.id and s.place_resource_id = ${placeId}
+    `);
+    await db.execute(sql`release savepoint slot_write`);
+  } catch (error) {
+    if (isDeadlock(error)) throw error;
+    await db.execute(sql`rollback to savepoint slot_write`);
+    if (!isExclusion(error)) throw error;
+    const conflict = await zoneConflict(db, placeId, timeZone);
+    if (!conflict) throw error;
+    throw strictError(conflict);
+  }
+}
+
+async function writeLinks(
+  db: Sql,
+  organizationId: string,
+  slotId: string,
+  links: CatalogResource[],
+  occupies: boolean,
+): Promise<void> {
+  for (let index = 0; index < links.length; index += 1) {
+    const link = links[index]!;
+    const role = index === 0 ? 'place' : link.role;
+    await db.execute(sql`
+      insert into schedule_slot_resource (
+        organization_id, slot_id, resource_id, role, enforce_no_overlap, during, created_at
       )
-      select ${organizationId}, ${classId}, ${trainerId},
-             case when ${cancelled} then null
-                  else tstzrange(starts_at, ends_at, '[)') end,
+      select ${organizationId}, ${slotId}, ${link.id}, ${role},
+             ${link.conflictMode === 'strict'},
+             case when ${occupies} then tstzrange(starts_at, ends_at, '[)') else null end,
              now() + (${String(index)} || ' milliseconds')::interval
-        from scheduled_class
-       where id = ${classId}
+        from schedule_slot
+       where id = ${slotId}
     `);
   }
 }
 
 async function assertFree(
   db: Sql,
-  input: ClassFields,
+  organizationId: string,
+  input: SlotFields & { date: string },
   timeZone: string,
   exceptId: string | null,
+  confirmOverlap: boolean,
 ): Promise<void> {
-  const busy = await findBusy(db, input, timeZone, exceptId);
-  if (busy) throw busyError(busy);
-}
-
-export async function findBusy(
-  db: Sql,
-  input: ClassFields,
-  timeZone: string,
-  exceptId: string | null,
-): Promise<BusyRow | undefined> {
-  const except = exceptId ?? '00000000-0000-0000-0000-000000000000';
-  const range = sql`tstzrange(
-    (${input.date}::date + ${input.startTime}::time) at time zone ${timeZone},
-    ((${input.date}::date + ${input.startTime}::time) at time zone ${timeZone})
-      + (${String(input.durationMinutes)} || ' minutes')::interval,
-    '[)'
-  )`;
-  const hallRows = await db.execute<BusyRow>(sql`
-    select c.id as class_id, ct.name as class_type_name, h.name as hall_name,
-           null::text as trainer_name,
-           to_char(c.start_time, 'HH24:MI') as start_time,
-           c.duration_minutes, 'hall'::text as kind
-      from scheduled_class c
-      join resource ct on ct.id = c.class_type_id
-      join resource h on h.id = c.hall_id
-     where c.hall_id = ${input.hallId}
-       and c.id <> ${except}
-       and not c.cancelled
-       and tstzrange(c.starts_at, c.ends_at, '[)') && ${range}
-     order by c.date, c.start_time, c.id
-     limit 1
-  `);
-  if (hallRows.rows[0]) return hallRows.rows[0];
-  const trainerRows = await db.execute<BusyRow>(sql`
-    select c.id as class_id, ct.name as class_type_name, h.name as hall_name,
-           tr.name as trainer_name,
-           to_char(c.start_time, 'HH24:MI') as start_time,
-           c.duration_minutes, 'trainer'::text as kind
-      from scheduled_class_trainer t
-      join scheduled_class c on c.id = t.class_id
-      join resource ct on ct.id = c.class_type_id
-      join resource h on h.id = c.hall_id
-      join resource tr on tr.id = t.trainer_id
-     where t.trainer_id in (${sql.join(
-       input.trainerIds.map((id) => sql`${id}`),
-       sql`, `,
-     )})
-       and c.id <> ${except}
-       and not c.cancelled
-       and t.during && ${range}
-     order by c.date, c.start_time, c.id
-     limit 1
-  `);
-  return trainerRows.rows[0];
-}
-
-function busyError(row: BusyRow): ApiError {
-  const start = row.start_time.slice(0, 5);
-  const end = endClock(start, row.duration_minutes);
-  if (row.kind === 'hall') {
-    return new ApiError({
-      statusCode: 409,
-      code: 'HALL_BUSY',
-      message: hallBusyText(row.class_type_name, start, end),
-      conflict: {
-        classTypeName: row.class_type_name,
-        start,
-        end,
-        classId: row.class_id,
-      },
-    });
+  const found = await findConflicts(
+    db,
+    organizationId,
+    input,
+    timeZone,
+    exceptId,
+  );
+  if (found.strict) throw strictError(found.strict);
+  if (found.warnings.length > 0 && !confirmOverlap) {
+    throw warningError(found.warnings);
   }
-  return new ApiError({
-    statusCode: 409,
-    code: 'TRAINER_BUSY',
-    message: trainerBusyText(row.trainer_name ?? '', row.hall_name, start, end),
-    conflict: {
-      trainerName: row.trainer_name ?? '',
-      hallName: row.hall_name,
-      start,
-      end,
-      classId: row.class_id,
-    },
-  });
 }
 
 async function busyFrom(
   db: Sql,
   error: unknown,
-  input: ClassFields,
+  organizationId: string,
+  input: SlotFields & { date: string },
   timeZone: string,
   exceptId: string | null,
+  confirmOverlap: boolean,
 ): Promise<unknown> {
   if (!isExclusion(error)) return error;
-  const busy = await findBusy(db, input, timeZone, exceptId);
-  return busy ? busyError(busy) : error;
+  const found = await findConflicts(
+    db,
+    organizationId,
+    input,
+    timeZone,
+    exceptId,
+  );
+  if (found.strict) return strictError(found.strict);
+  if (found.warnings.length > 0 && !confirmOverlap) {
+    return warningError(found.warnings);
+  }
+  return error;
+}
+
+function conflictOf(
+  resourceId: string,
+  resourceName: string,
+  start: string,
+  end: string,
+  title: string,
+  slotId: string,
+  started: boolean,
+): TimeConflict {
+  return { resourceId, resourceName, start, end, title, slotId, started };
+}
+
+function strictError(conflict: ScheduleConflict): ApiError {
+  return new ApiError({
+    statusCode: 409,
+    code: 'RESOURCE_BUSY',
+    message: busyMessage(conflict),
+    conflict,
+  });
+}
+
+function warningError(conflicts: TimeConflict[]): ApiError {
+  return new ApiError({
+    statusCode: 409,
+    code: 'OVERLAP_WARNING',
+    message: 'This time overlaps another slot',
+    conflicts,
+  });
+}
+
+function uuidIn(ids: string[]) {
+  return sql.join(
+    ids.map((id) => sql`${id}`),
+    sql`, `,
+  );
+}
+
+function isDeadlock(error: unknown): boolean {
+  return hasCode(error, '40P01');
 }
 
 function isExclusion(error: unknown): boolean {
+  return hasCode(error, '23P01');
+}
+
+function hasCode(error: unknown, code: string): boolean {
   let current: unknown = error;
   while (current && typeof current === 'object') {
-    if ('code' in current && current.code === '23P01') return true;
+    if ('code' in current && current.code === code) return true;
     current = 'cause' in current ? current.cause : undefined;
   }
   return false;
-}
-
-async function readClassRow(
-  db: Sql,
-  classId: string,
-): Promise<(ClassFields & { timeZone: string }) | undefined> {
-  const rows = await db.execute<{
-    hall_id: string;
-    date: string;
-    start_time: string;
-    duration_minutes: number;
-    class_type_id: string;
-    audience: ClassFields['audience'];
-    format: ClassFields['format'];
-    places: number | null;
-    time_zone: string;
-  }>(sql`
-    select c.hall_id, to_char(c.date, 'YYYY-MM-DD') as date,
-           to_char(c.start_time, 'HH24:MI') as start_time,
-           c.duration_minutes, c.class_type_id, c.audience, c.format, c.places,
-           h.time_zone
-      from scheduled_class c
-      join resource h on h.id = c.hall_id
-     where c.id = ${classId}
-  `);
-  const row = rows.rows[0];
-  if (!row) return undefined;
-  const trainers = await db.execute<{ trainer_id: string }>(sql`
-    select trainer_id from scheduled_class_trainer
-     where class_id = ${classId}
-     order by created_at, trainer_id
-  `);
-  return {
-    hallId: row.hall_id,
-    date: row.date,
-    startTime: row.start_time,
-    durationMinutes: row.duration_minutes,
-    trainerIds: trainers.rows.map((trainer) => trainer.trainer_id),
-    classTypeId: row.class_type_id,
-    audience: row.audience,
-    format: row.format,
-    places: row.places,
-    timeZone: row.time_zone,
-  };
-}
-
-export async function readClass(
-  db: Sql,
-  classId: string,
-): Promise<ClassView | undefined> {
-  const rows = await db.execute<{
-    id: string;
-    hall_id: string;
-    date: string;
-    start_time: string;
-    duration_minutes: number;
-    class_type_id: string;
-    audience: ClassFields['audience'];
-    format: ClassFields['format'];
-    places: number | null;
-    cancelled: boolean;
-    created_at: Date;
-    updated_at: Date;
-  }>(sql`
-    select id, hall_id, to_char(date, 'YYYY-MM-DD') as date,
-           to_char(start_time, 'HH24:MI') as start_time,
-           duration_minutes, class_type_id, audience, format, places, cancelled,
-           created_at, updated_at
-      from scheduled_class
-     where id = ${classId}
-  `);
-  const row = rows.rows[0];
-  if (!row) return undefined;
-  const trainers = await db.execute<{ trainer_id: string }>(sql`
-    select trainer_id from scheduled_class_trainer
-     where class_id = ${classId}
-     order by created_at, trainer_id
-  `);
-  return {
-    id: row.id,
-    hallId: row.hall_id,
-    date: row.date,
-    startTime: row.start_time,
-    durationMinutes: row.duration_minutes,
-    trainerIds: trainers.rows.map((trainer) => trainer.trainer_id),
-    classTypeId: row.class_type_id,
-    audience: row.audience,
-    format: row.format,
-    places: row.places,
-    cancelled: row.cancelled,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-export async function zoneConflict(
-  db: Sql,
-  hallId: string,
-  timeZone: string,
-): Promise<ApiError | undefined> {
-  const rows = await db.execute<BusyRow>(sql`
-    with moved as (
-      select c.id,
-             (c.date + c.start_time) at time zone ${timeZone} as starts_at,
-             (c.date + c.start_time) at time zone ${timeZone}
-               + (c.duration_minutes || ' minutes')::interval as ends_at
-        from scheduled_class c
-       where c.hall_id = ${hallId} and not c.cancelled
-    )
-    select other.id as class_id, ct.name as class_type_name, h.name as hall_name,
-           tr.name as trainer_name,
-           to_char(other.start_time, 'HH24:MI') as start_time,
-           other.duration_minutes, 'trainer'::text as kind
-      from moved m
-      join scheduled_class_trainer mine on mine.class_id = m.id
-      join scheduled_class_trainer theirs
-        on theirs.trainer_id = mine.trainer_id and theirs.class_id <> m.id
-      join scheduled_class other on other.id = theirs.class_id and not other.cancelled
-      join resource ct on ct.id = other.class_type_id
-      join resource h on h.id = other.hall_id
-      join resource tr on tr.id = mine.trainer_id
-     where other.hall_id <> ${hallId}
-       and tstzrange(m.starts_at, m.ends_at, '[)') && theirs.during
-     order by other.date, other.start_time, other.id
-     limit 1
-  `);
-  const row = rows.rows[0];
-  return row ? busyError(row) : undefined;
-}
-
-export interface OverlapRow extends BusyRow {
-  started: boolean;
-  reason: 'hall' | 'trainer';
-}
-
-export async function listOverlaps(
-  db: Sql,
-  input: ClassFields,
-  timeZone: string,
-): Promise<OverlapRow[]> {
-  const range = sql`tstzrange(
-    (${input.date}::date + ${input.startTime}::time) at time zone ${timeZone},
-    ((${input.date}::date + ${input.startTime}::time) at time zone ${timeZone})
-      + (${String(input.durationMinutes)} || ' minutes')::interval,
-    '[)'
-  )`;
-  const rows = await db.execute<OverlapRow>(sql`
-    select c.id as class_id, ct.name as class_type_name, h.name as hall_name,
-           null::text as trainer_name,
-           to_char(c.start_time, 'HH24:MI') as start_time,
-           c.duration_minutes, 'hall'::text as kind, 'hall'::text as reason,
-           c.starts_at <= now() as started
-      from scheduled_class c
-      join resource ct on ct.id = c.class_type_id
-      join resource h on h.id = c.hall_id
-     where c.hall_id = ${input.hallId}
-       and not c.cancelled
-       and tstzrange(c.starts_at, c.ends_at, '[)') && ${range}
-    union all
-    select c.id, ct.name, h.name, tr.name,
-           to_char(c.start_time, 'HH24:MI'), c.duration_minutes,
-           'trainer', 'trainer', c.starts_at <= now()
-      from scheduled_class_trainer t
-      join scheduled_class c on c.id = t.class_id
-      join resource ct on ct.id = c.class_type_id
-      join resource h on h.id = c.hall_id
-      join resource tr on tr.id = t.trainer_id
-     where t.trainer_id in (${sql.join(
-       input.trainerIds.map((id) => sql`${id}`),
-       sql`, `,
-     )})
-       and not c.cancelled
-       and t.during && ${range}
-     order by 1
-  `);
-  return rows.rows;
-}
-
-export async function deleteClass(db: Sql, classId: string): Promise<void> {
-  await db.execute(sql`delete from scheduled_class where id = ${classId}`);
-}
-
-export async function retimeHall(
-  db: Sql,
-  hallId: string,
-  timeZone: string,
-): Promise<void> {
-  await db.execute(sql`
-    update scheduled_class
-       set starts_at = (date + start_time) at time zone ${timeZone},
-           ends_at = (date + start_time) at time zone ${timeZone}
-             + (duration_minutes || ' minutes')::interval,
-           updated_at = now()
-     where hall_id = ${hallId}
-  `);
-  await db.execute(sql`
-    update scheduled_class_trainer t
-       set during = tstzrange(c.starts_at, c.ends_at, '[)')
-      from scheduled_class c
-     where t.class_id = c.id and c.hall_id = ${hallId} and not c.cancelled
-  `);
 }

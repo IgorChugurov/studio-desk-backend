@@ -1,10 +1,30 @@
 import { z } from 'zod';
 import { endsAfterMidnight } from './schedule-time.js';
 
-const DURATION = 'Enter a duration from 5 to 240 minutes in steps of 5';
+const DURATION = 'Enter a duration from 5 to 1440 minutes in steps of 5';
 const TIME = 'Enter a time in steps of 5 minutes';
+const MIDNIGHT = 'A slot must end by midnight';
 
 const clock = /^([01]\d|2[0-3]):(00|05|10|15|20|25|30|35|40|45|50|55)$/;
+
+const weekdays = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+] as const;
+
+const statuses = [
+  'planned',
+  'confirmed',
+  'in_progress',
+  'completed',
+  'cancelled',
+  'no_show',
+] as const;
 
 export const startTimeField = z
   .string()
@@ -25,7 +45,7 @@ export const durationField = z
     if (
       !Number.isInteger(value) ||
       value < 5 ||
-      value > 240 ||
+      value > 1440 ||
       value % 5 !== 0
     ) {
       ctx.addIssue({
@@ -36,37 +56,31 @@ export const durationField = z
     }
   });
 
-const trainerIdsField = z.array(z.uuid()).superRefine((value, ctx) => {
-  if (value.length === 0) {
-    ctx.addIssue({
-      code: 'custom',
-      message: 'Select at least one trainer',
-      params: { fieldCode: 'REQUIRED' },
-    });
-  }
+const resourceIdsField = z.array(z.uuid()).superRefine((value, ctx) => {
   if (new Set(value).size !== value.length) {
     ctx.addIssue({
       code: 'custom',
-      message: 'Choose each trainer once',
+      message: 'Choose each resource once',
       params: { fieldCode: 'INVALID_VALUE' },
     });
   }
 });
 
-const shared = {
-  hallId: z.uuid({ error: 'Select a hall' }),
-  startTime: startTimeField,
-  durationMinutes: durationField,
-  trainerIds: trainerIdsField,
-  classTypeId: z.uuid({ error: 'Select a class type' }),
-  audience: z.enum(['group', 'one_person'], {
-    error: 'Choose group or one person',
-  }),
-  format: z.enum(['offline', 'offline_and_online', 'online_only'], {
-    error: 'Choose a format',
-  }),
-  places: z.number().int().nullable().optional(),
-};
+const noteField = z.preprocess((value) => {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}, z.string().nullable().optional());
+
+const audienceField = z.enum(['group', 'one_person'], {
+  error: 'Choose group or one person',
+});
+const formatField = z.enum(['offline', 'offline_and_online', 'online_only'], {
+  error: 'Choose a format',
+});
+const placesField = z.number().int().nullable().optional();
 
 function midnight(
   value: { startTime?: string; durationMinutes?: number },
@@ -82,76 +96,73 @@ function midnight(
     ctx.addIssue({
       code: 'custom',
       path: ['startTime'],
-      message: 'A class must end by midnight',
+      message: MIDNIGHT,
       params: { fieldCode: 'INVALID_VALUE' },
     });
   }
 }
 
-export const classBody = z
+const shared = {
+  kind: z.enum(['service', 'block'], { error: 'Choose a slot kind' }),
+  placeResourceId: z.uuid({ error: 'Select a place' }).optional(),
+  resourceIds: resourceIdsField.optional(),
+  startTime: startTimeField,
+  durationMinutes: durationField,
+  audience: audienceField.nullable().optional(),
+  format: formatField.nullable().optional(),
+  places: placesField,
+  note: noteField,
+  blocksAll: z.boolean().optional(),
+};
+
+export const slotBody = z
   .object({
     ...shared,
     date: z.iso.date({ error: 'Select a date' }),
+    confirmOverlap: z.boolean().optional(),
   })
-  .superRefine(midnight)
-  .transform((value) => ({ ...value, places: value.places ?? null }));
+  .superRefine(midnight);
+
+export const slotPatch = z
+  .object({
+    placeResourceId: shared.placeResourceId,
+    resourceIds: resourceIdsField.optional(),
+    date: z.iso.date({ error: 'Select a date' }).optional(),
+    startTime: startTimeField.optional(),
+    durationMinutes: durationField.optional(),
+    audience: audienceField.nullable().optional(),
+    format: formatField.nullable().optional(),
+    places: placesField,
+    note: noteField,
+    blocksAll: z.boolean().optional(),
+    status: z.enum(statuses, { error: 'Choose a status' }).optional(),
+    confirmOverlap: z.boolean().optional(),
+  })
+  .superRefine(midnight);
 
 export const rowBody = z
   .object({
     ...shared,
-    weekday: z.enum(
-      [
-        'monday',
-        'tuesday',
-        'wednesday',
-        'thursday',
-        'friday',
-        'saturday',
-        'sunday',
-      ],
-      { error: 'Select a day of week' },
-    ),
+    weekday: z.enum(weekdays, { error: 'Select a day of week' }),
   })
-  .superRefine(midnight)
-  .transform((value) => ({ ...value, places: value.places ?? null }));
+  .superRefine(midnight);
 
 export const rowPatch = z
   .object({
-    hallId: shared.hallId.optional(),
+    kind: shared.kind.optional(),
+    placeResourceId: shared.placeResourceId,
+    resourceIds: resourceIdsField.optional(),
     startTime: startTimeField.optional(),
     durationMinutes: durationField.optional(),
-    trainerIds: trainerIdsField.optional(),
-    classTypeId: shared.classTypeId.optional(),
-    audience: shared.audience.optional(),
-    format: shared.format.optional(),
-    places: z.number().int().nullable().optional(),
-    weekday: z
-      .enum(
-        [
-          'monday',
-          'tuesday',
-          'wednesday',
-          'thursday',
-          'friday',
-          'saturday',
-          'sunday',
-        ],
-        { error: 'Select a day of week' },
-      )
-      .optional(),
+    audience: audienceField.nullable().optional(),
+    format: formatField.nullable().optional(),
+    places: placesField,
+    note: noteField,
+    blocksAll: z.boolean().optional(),
+    weekday: z.enum(weekdays, { error: 'Select a day of week' }).optional(),
   })
   .superRefine(midnight);
 
-export const classPatch = z
-  .object({
-    hallId: shared.hallId.optional(),
-    date: z.iso.date({ error: 'Select a date' }).optional(),
-    startTime: startTimeField.optional(),
-    durationMinutes: durationField.optional(),
-    trainerIds: trainerIdsField.optional(),
-    classTypeId: z.uuid().optional(),
-    audience: shared.audience.optional(),
-    format: shared.format.optional(),
-    places: z.number().int().nullable().optional(),
-  })
-  .superRefine(midnight);
+export const restoreBody = z.object({
+  confirmOverlap: z.boolean().optional(),
+});
