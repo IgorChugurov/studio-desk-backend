@@ -290,7 +290,7 @@ export class WeeksService {
              r.duration_minutes, r.hall_id, r.class_type_id, ct.name as class_type_name,
              r.audience, r.format, r.places
         from week_template_row r
-        join class_type ct on ct.id = r.class_type_id
+        join resource ct on ct.id = r.class_type_id
        where r.template_id = ${templateId}
     `);
     const result = [];
@@ -413,8 +413,9 @@ export class WeeksService {
       ]);
     }
     const rows = await this.db.execute<{ id: string }>(sql`
-      select id from hall
+      select id from resource
        where organization_id = ${organizationId}
+         and type is not null
          and id in (${sql.join(
            hallIds.map((id) => sql`${id}`),
            sql`, `,

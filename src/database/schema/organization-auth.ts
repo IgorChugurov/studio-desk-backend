@@ -9,9 +9,9 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { trainer } from './catalog.js';
 import { platformAdministrator } from './platform-auth.js';
 import { organization } from './organization.js';
+import { resource } from './resource.js';
 
 /**
  * A staff member of an organization (not the owner: the owner is on the organization row).
@@ -48,14 +48,14 @@ export const organizationStaff = pgTable(
 );
 
 /**
- * One catalog trainer for a staff member whose role is specialist.
- * `staff_id` is the primary key, so a staff member has at most one link.
- * `trainer_id` is unique, so a catalog trainer has at most one staff member.
- * Deleting the staff member deletes this row. Deleting the trainer is refused
- * while the row exists.
+ * One catalog resource for a staff member whose role is specialist.
+ * The resource's type has `person`. `staff_id` is the primary key, so a staff
+ * member has at most one link. `resource_id` is unique, so a catalog resource
+ * has at most one staff member. Deleting the staff member deletes this row.
+ * Deleting the resource is refused while the row exists.
  */
-export const staffTrainer = pgTable(
-  'staff_trainer',
+export const staffResource = pgTable(
+  'staff_resource',
   {
     organizationId: uuid('organization_id')
       .notNull()
@@ -63,16 +63,16 @@ export const staffTrainer = pgTable(
     staffId: uuid('staff_id')
       .primaryKey()
       .references(() => organizationStaff.id, { onDelete: 'cascade' }),
-    trainerId: uuid('trainer_id')
+    resourceId: uuid('resource_id')
       .notNull()
-      .references(() => trainer.id),
+      .references(() => resource.id, { onDelete: 'restrict' }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
-    uniqueIndex('staff_trainer_trainer_id_unique').on(table.trainerId),
-    index('staff_trainer_organization_id_idx').on(table.organizationId),
+    uniqueIndex('staff_resource_resource_id_unique').on(table.resourceId),
+    index('staff_resource_organization_id_idx').on(table.organizationId),
   ],
 );
 

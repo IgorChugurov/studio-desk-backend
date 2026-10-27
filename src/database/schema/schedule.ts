@@ -14,9 +14,8 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { classType, trainer } from './catalog.js';
-import { hall } from './hall.js';
 import { organization } from './organization.js';
+import { resource } from './resource.js';
 
 /** Real interval `[start, end)`. Empty when the class is cancelled. */
 const tstzrange = customType<{ data: string; driverData: string }>({
@@ -74,10 +73,10 @@ export const weekTemplateRow = pgTable(
     durationMinutes: integer('duration_minutes').notNull(),
     hallId: uuid('hall_id')
       .notNull()
-      .references(() => hall.id),
+      .references(() => resource.id),
     classTypeId: uuid('class_type_id')
       .notNull()
-      .references(() => classType.id),
+      .references(() => resource.id),
     audience: text('audience').notNull(),
     format: text('format').notNull(),
     places: integer('places'),
@@ -125,7 +124,7 @@ export const weekTemplateRowTrainer = pgTable(
       .references(() => weekTemplateRow.id, { onDelete: 'cascade' }),
     trainerId: uuid('trainer_id')
       .notNull()
-      .references(() => trainer.id),
+      .references(() => resource.id),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -151,10 +150,10 @@ export const scheduledClass = pgTable(
       .references(() => organization.id),
     hallId: uuid('hall_id')
       .notNull()
-      .references(() => hall.id),
+      .references(() => resource.id),
     classTypeId: uuid('class_type_id')
       .notNull()
-      .references(() => classType.id),
+      .references(() => resource.id),
     date: date('date').notNull(),
     startTime: time('start_time').notNull(),
     durationMinutes: integer('duration_minutes').notNull(),
@@ -208,7 +207,7 @@ export const scheduledClassTrainer = pgTable(
       .references(() => scheduledClass.id, { onDelete: 'cascade' }),
     trainerId: uuid('trainer_id')
       .notNull()
-      .references(() => trainer.id),
+      .references(() => resource.id),
     during: tstzrange('during'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()

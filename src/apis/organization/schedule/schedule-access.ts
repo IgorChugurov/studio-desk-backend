@@ -14,9 +14,9 @@ export async function openSchedule(
   const role = await access.roleOf(session);
   if (role !== 'specialist') return { role, trainerId: null };
   const rows = await db.execute<{ trainer_id: string }>(sql`
-    select link.trainer_id
+    select link.resource_id as trainer_id
       from organization_staff staff
-      join staff_trainer link on link.staff_id = staff.id
+      join staff_resource link on link.staff_id = staff.id
      where staff.organization_id = ${session.organizationId}
        and staff.email = ${session.email}
        and staff.role = 'specialist'

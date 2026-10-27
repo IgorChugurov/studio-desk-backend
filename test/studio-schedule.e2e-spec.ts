@@ -75,28 +75,42 @@ describe('studio schedule', () => {
   }
 
   async function catalog(owner: ReturnType<typeof authed>) {
-    const hall = await owner.post('/api/organization/halls', {
+    const settings = await owner.get('/api/organization/settings');
+    const types = settings.body.catalogConfig.resourceTypes as Array<{
+      id: string;
+      role: string;
+    }>;
+    const place = types.find((type) => type.role === 'place')!.id;
+    const person = types.find((type) => type.role === 'resource')!.id;
+    const offering = types.find((type) => type.role === 'offering')!.id;
+    const hall = await owner.post('/api/organization/resources', {
+      resourceTypeId: place,
       name: 'Main',
       address: 'Street 1',
       timeZone: 'Europe/Bratislava',
     });
-    const other = await owner.post('/api/organization/halls', {
+    const other = await owner.post('/api/organization/resources', {
+      resourceTypeId: place,
       name: 'Side',
       address: 'Street 2',
       timeZone: 'America/New_York',
     });
-    const virtual = await owner.post('/api/organization/halls', {
+    const virtual = await owner.post('/api/organization/resources', {
+      resourceTypeId: place,
       type: 'virtual',
       name: 'Online',
       timeZone: 'Europe/Bratislava',
     });
-    const trainer = await owner.post('/api/organization/trainers', {
+    const trainer = await owner.post('/api/organization/resources', {
+      resourceTypeId: person,
       name: 'Anna',
     });
-    const boris = await owner.post('/api/organization/trainers', {
+    const boris = await owner.post('/api/organization/resources', {
+      resourceTypeId: person,
       name: 'Boris',
     });
-    const yoga = await owner.post('/api/organization/class-types', {
+    const yoga = await owner.post('/api/organization/resources', {
+      resourceTypeId: offering,
       name: 'Yoga',
       defaultDuration: 60,
     });
@@ -107,6 +121,7 @@ describe('studio schedule', () => {
       anna: trainer.body.id as string,
       boris: boris.body.id as string,
       yoga: yoga.body.id as string,
+      offering,
     };
   }
 
@@ -155,7 +170,7 @@ describe('studio schedule', () => {
     const staff = await owner.post('/api/organization/staff', {
       email: 'anna@example.com',
       role: 'specialist',
-      trainerId: ids.anna,
+      resourceId: ids.anna,
     });
     expect(staff.status).toBe(201);
     const trainer = authed(await sessionFor(yoga, 'anna@example.com'));
@@ -253,7 +268,7 @@ describe('studio schedule', () => {
       'The hall is busy at this time: Yoga 11:00–12:00',
     );
 
-    await owner.patch(`/api/organization/halls/${ids.other}`, {
+    await owner.patch(`/api/organization/resources/${ids.other}`, {
       timeZone: 'Europe/Bratislava',
     });
     const across = await owner.post(
@@ -306,7 +321,8 @@ describe('studio schedule', () => {
       },
     );
     expect(changed.status).toBe(200);
-    const otherType = await owner.post('/api/organization/class-types', {
+    const otherType = await owner.post('/api/organization/resources', {
+      resourceTypeId: ids.offering,
       name: 'Pilates',
       defaultDuration: 60,
     });
@@ -319,7 +335,7 @@ describe('studio schedule', () => {
     expect(refusedType.status).toBe(400);
     expect(refusedType.body.errors[0].field).toBe('classTypeId');
 
-    await owner.patch(`/api/organization/halls/${ids.other}`, {
+    await owner.patch(`/api/organization/resources/${ids.other}`, {
       timeZone: 'Europe/Bratislava',
     });
     const blocker = await owner.post(
@@ -586,14 +602,17 @@ describe('studio schedule', () => {
       }),
     );
     expect(newYork.status).toBe(201);
-    const moved = await owner.patch(`/api/organization/halls/${ids.other}`, {
-      timeZone: 'Europe/Bratislava',
-    });
+    const moved = await owner.patch(
+      `/api/organization/resources/${ids.other}`,
+      {
+        timeZone: 'Europe/Bratislava',
+      },
+    );
     expect(moved.status).toBe(409);
-    expect(moved.body.code).toBe('TRAINER_BUSY');
+    expect(moved.body.code).toBe('RESOURCE_BUSY');
     expect(moved.body.conflict.classId).toBe(bratislava.body.id);
     expect(moved.body.conflict.start).toBe('18:00');
-    const hall = await owner.get(`/api/organization/halls/${ids.other}`);
+    const hall = await owner.get(`/api/organization/resources/${ids.other}`);
     expect(hall.body.timeZone).toBe('America/New_York');
     const classAfter = await owner.get(
       `/api/organization/classes/${newYork.body.id}`,

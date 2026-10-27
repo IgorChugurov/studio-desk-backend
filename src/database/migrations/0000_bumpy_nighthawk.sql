@@ -1,111 +1,67 @@
-CREATE TABLE "class_type" (
+CREATE TABLE "resource" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" uuid NOT NULL,
+	"resource_type_id" uuid NOT NULL,
 	"name" text NOT NULL,
+	"type" text,
+	"address" text,
+	"time_zone" text,
+	"default_duration" integer,
 	"description" text,
-	"default_duration" integer NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "class_type_name_not_blank" CHECK ("class_type"."name" = btrim("class_type"."name") and char_length("class_type"."name") > 0),
-	CONSTRAINT "class_type_description_not_blank" CHECK ("class_type"."description" is null or ("class_type"."description" = btrim("class_type"."description") and char_length("class_type"."description") > 0)),
-	CONSTRAINT "class_type_default_duration" CHECK ("class_type"."default_duration" between 5 and 240 and "class_type"."default_duration" % 5 = 0)
-);
---> statement-breakpoint
-CREATE TABLE "class_type_file" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"class_type_id" uuid NOT NULL,
-	"storage_path" text NOT NULL,
-	"content_type" text NOT NULL,
-	"index" integer NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "class_type_file_index_non_negative" CHECK ("class_type_file"."index" >= 0),
-	CONSTRAINT "class_type_file_content_type" CHECK ("class_type_file"."content_type" in (
-        'image/jpeg', 'image/png', 'image/webp', 'image/gif',
-        'video/mp4', 'video/webm'
-      )),
-	CONSTRAINT "class_type_file_storage_path_not_blank" CHECK ("class_type_file"."storage_path" = btrim("class_type_file"."storage_path") and char_length("class_type_file"."storage_path") > 0)
-);
---> statement-breakpoint
-CREATE TABLE "trainer" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" uuid NOT NULL,
-	"name" text NOT NULL,
-	"description" text,
+	"video_link" text,
 	"instagram" text,
 	"tiktok" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "trainer_name_not_blank" CHECK ("trainer"."name" = btrim("trainer"."name") and char_length("trainer"."name") > 0),
-	CONSTRAINT "trainer_description_not_blank" CHECK ("trainer"."description" is null or ("trainer"."description" = btrim("trainer"."description") and char_length("trainer"."description") > 0)),
-	CONSTRAINT "trainer_instagram_not_blank" CHECK ("trainer"."instagram" is null or ("trainer"."instagram" = btrim("trainer"."instagram") and char_length("trainer"."instagram") > 0)),
-	CONSTRAINT "trainer_tiktok_not_blank" CHECK ("trainer"."tiktok" is null or ("trainer"."tiktok" = btrim("trainer"."tiktok") and char_length("trainer"."tiktok") > 0))
+	CONSTRAINT "resource_name_not_blank" CHECK ("resource"."name" = btrim("resource"."name") and char_length("resource"."name") > 0),
+	CONSTRAINT "resource_geography" CHECK ((
+		"resource"."type" is null and "resource"."address" is null and "resource"."time_zone" is null
+	) or (
+		"resource"."type" = 'ordinary'
+		and "resource"."address" = btrim("resource"."address")
+		and char_length("resource"."address") > 0
+		and "resource"."time_zone" = btrim("resource"."time_zone")
+		and char_length("resource"."time_zone") > 0
+	) or (
+		"resource"."type" = 'virtual'
+		and "resource"."address" = 'Virtual place'
+		and "resource"."time_zone" = btrim("resource"."time_zone")
+		and char_length("resource"."time_zone") > 0
+	)),
+	CONSTRAINT "resource_default_duration" CHECK ("resource"."default_duration" is null or ("resource"."default_duration" between 5 and 1440 and "resource"."default_duration" % 5 = 0)),
+	CONSTRAINT "resource_description_not_blank" CHECK ("resource"."description" is null or ("resource"."description" = btrim("resource"."description") and char_length("resource"."description") > 0)),
+	CONSTRAINT "resource_video_link_not_blank" CHECK ("resource"."video_link" is null or ("resource"."video_link" = btrim("resource"."video_link") and char_length("resource"."video_link") > 0)),
+	CONSTRAINT "resource_instagram_not_blank" CHECK ("resource"."instagram" is null or ("resource"."instagram" = btrim("resource"."instagram") and char_length("resource"."instagram") > 0)),
+	CONSTRAINT "resource_tiktok_not_blank" CHECK ("resource"."tiktok" is null or ("resource"."tiktok" = btrim("resource"."tiktok") and char_length("resource"."tiktok") > 0))
 );
 --> statement-breakpoint
-CREATE TABLE "trainer_class_type" (
-	"organization_id" uuid NOT NULL,
-	"trainer_id" uuid NOT NULL,
-	"class_type_id" uuid NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "trainer_class_type_trainer_id_class_type_id_pk" PRIMARY KEY("trainer_id","class_type_id")
-);
---> statement-breakpoint
-CREATE TABLE "trainer_file" (
+CREATE TABLE "resource_file" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"trainer_id" uuid NOT NULL,
+	"resource_id" uuid NOT NULL,
 	"storage_path" text NOT NULL,
 	"content_type" text NOT NULL,
 	"index" integer NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "trainer_file_index_non_negative" CHECK ("trainer_file"."index" >= 0),
-	CONSTRAINT "trainer_file_content_type" CHECK ("trainer_file"."content_type" in (
+	CONSTRAINT "resource_file_index_non_negative" CHECK ("resource_file"."index" >= 0),
+	CONSTRAINT "resource_file_content_type" CHECK ("resource_file"."content_type" in (
         'image/jpeg', 'image/png', 'image/webp', 'image/gif',
         'video/mp4', 'video/webm'
       )),
-	CONSTRAINT "trainer_file_storage_path_not_blank" CHECK ("trainer_file"."storage_path" = btrim("trainer_file"."storage_path") and char_length("trainer_file"."storage_path") > 0)
+	CONSTRAINT "resource_file_storage_path_not_blank" CHECK ("resource_file"."storage_path" = btrim("resource_file"."storage_path") and char_length("resource_file"."storage_path") > 0)
+);
+--> statement-breakpoint
+CREATE TABLE "resource_relation" (
+	"organization_id" uuid NOT NULL,
+	"resource_a_id" uuid NOT NULL,
+	"resource_b_id" uuid NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "resource_relation_resource_a_id_resource_b_id_pk" PRIMARY KEY("resource_a_id","resource_b_id"),
+	CONSTRAINT "resource_relation_ordered" CHECK ("resource_relation"."resource_a_id" < "resource_relation"."resource_b_id")
 );
 --> statement-breakpoint
 CREATE TABLE "currency" (
 	"code" text PRIMARY KEY NOT NULL,
 	CONSTRAINT "currency_code" CHECK ("currency"."code" = upper("currency"."code") and char_length("currency"."code") = 3)
-);
---> statement-breakpoint
-CREATE TABLE "hall" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" uuid NOT NULL,
-	"type" text DEFAULT 'ordinary' NOT NULL,
-	"name" text NOT NULL,
-	"address" text NOT NULL,
-	"time_zone" text NOT NULL,
-	"description" text,
-	"video_link" text,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "hall_type" CHECK ("hall"."type" in ('ordinary', 'virtual')),
-	CONSTRAINT "hall_name_not_blank" CHECK ("hall"."name" = btrim("hall"."name") and char_length("hall"."name") > 0),
-	CONSTRAINT "hall_address_not_blank" CHECK ("hall"."address" = btrim("hall"."address") and char_length("hall"."address") > 0),
-	CONSTRAINT "hall_virtual_address" CHECK ("hall"."type" = 'ordinary' or "hall"."address" = 'Virtual hall'),
-	CONSTRAINT "hall_time_zone_not_blank" CHECK ("hall"."time_zone" = btrim("hall"."time_zone") and char_length("hall"."time_zone") > 0),
-	CONSTRAINT "hall_description_not_blank" CHECK ("hall"."description" is null or (
-        "hall"."description" = btrim("hall"."description") and char_length("hall"."description") > 0
-      )),
-	CONSTRAINT "hall_video_link_not_blank" CHECK ("hall"."video_link" is null or (
-        "hall"."video_link" = btrim("hall"."video_link") and char_length("hall"."video_link") > 0
-      ))
-);
---> statement-breakpoint
-CREATE TABLE "hall_file" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"hall_id" uuid NOT NULL,
-	"storage_path" text NOT NULL,
-	"content_type" text NOT NULL,
-	"index" integer NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "hall_file_index_non_negative" CHECK ("hall_file"."index" >= 0),
-	CONSTRAINT "hall_file_content_type" CHECK ("hall_file"."content_type" in (
-        'image/jpeg', 'image/png', 'image/webp', 'image/gif',
-        'video/mp4', 'video/webm'
-      )),
-	CONSTRAINT "hall_file_storage_path_not_blank" CHECK ("hall_file"."storage_path" = btrim("hall_file"."storage_path") and char_length("hall_file"."storage_path") > 0)
 );
 --> statement-breakpoint
 CREATE TABLE "foundation_check" (
@@ -363,10 +319,10 @@ CREATE TABLE "organization_staff" (
 	CONSTRAINT "organization_staff_role" CHECK ("organization_staff"."role" in ('administrator', 'accountant', 'specialist'))
 );
 --> statement-breakpoint
-CREATE TABLE "staff_trainer" (
+CREATE TABLE "staff_resource" (
 	"organization_id" uuid NOT NULL,
 	"staff_id" uuid PRIMARY KEY NOT NULL,
-	"trainer_id" uuid NOT NULL,
+	"resource_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
@@ -387,32 +343,29 @@ CREATE TABLE "preset" (
 	CONSTRAINT "preset_sections_non_empty" CHECK (jsonb_typeof("preset"."sections") = 'array' and jsonb_array_length("preset"."sections") > 0)
 );
 --> statement-breakpoint
-ALTER TABLE "class_type" ADD CONSTRAINT "class_type_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "class_type_file" ADD CONSTRAINT "class_type_file_class_type_id_class_type_id_fk" FOREIGN KEY ("class_type_id") REFERENCES "public"."class_type"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "trainer" ADD CONSTRAINT "trainer_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "trainer_class_type" ADD CONSTRAINT "trainer_class_type_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "trainer_class_type" ADD CONSTRAINT "trainer_class_type_trainer_id_trainer_id_fk" FOREIGN KEY ("trainer_id") REFERENCES "public"."trainer"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "trainer_class_type" ADD CONSTRAINT "trainer_class_type_class_type_id_class_type_id_fk" FOREIGN KEY ("class_type_id") REFERENCES "public"."class_type"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "trainer_file" ADD CONSTRAINT "trainer_file_trainer_id_trainer_id_fk" FOREIGN KEY ("trainer_id") REFERENCES "public"."trainer"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hall" ADD CONSTRAINT "hall_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "hall_file" ADD CONSTRAINT "hall_file_hall_id_hall_id_fk" FOREIGN KEY ("hall_id") REFERENCES "public"."hall"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resource" ADD CONSTRAINT "resource_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resource" ADD CONSTRAINT "resource_resource_type_id_organization_resource_type_id_fk" FOREIGN KEY ("resource_type_id") REFERENCES "public"."organization_resource_type"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resource_file" ADD CONSTRAINT "resource_file_resource_id_resource_id_fk" FOREIGN KEY ("resource_id") REFERENCES "public"."resource"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resource_relation" ADD CONSTRAINT "resource_relation_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resource_relation" ADD CONSTRAINT "resource_relation_resource_a_id_resource_id_fk" FOREIGN KEY ("resource_a_id") REFERENCES "public"."resource"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "resource_relation" ADD CONSTRAINT "resource_relation_resource_b_id_resource_id_fk" FOREIGN KEY ("resource_b_id") REFERENCES "public"."resource"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "session" ADD CONSTRAINT "session_platform_administrator_id_platform_administrator_id_fk" FOREIGN KEY ("platform_administrator_id") REFERENCES "public"."platform_administrator"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "handoff_code" ADD CONSTRAINT "handoff_code_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "handoff_code" ADD CONSTRAINT "handoff_code_platform_administrator_id_platform_administrator_id_fk" FOREIGN KEY ("platform_administrator_id") REFERENCES "public"."platform_administrator"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_hall_id_hall_id_fk" FOREIGN KEY ("hall_id") REFERENCES "public"."hall"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_class_type_id_class_type_id_fk" FOREIGN KEY ("class_type_id") REFERENCES "public"."class_type"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_hall_id_resource_id_fk" FOREIGN KEY ("hall_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_class_type_id_resource_id_fk" FOREIGN KEY ("class_type_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scheduled_class_trainer" ADD CONSTRAINT "scheduled_class_trainer_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "scheduled_class_trainer" ADD CONSTRAINT "scheduled_class_trainer_class_id_scheduled_class_id_fk" FOREIGN KEY ("class_id") REFERENCES "public"."scheduled_class"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "scheduled_class_trainer" ADD CONSTRAINT "scheduled_class_trainer_trainer_id_trainer_id_fk" FOREIGN KEY ("trainer_id") REFERENCES "public"."trainer"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "scheduled_class_trainer" ADD CONSTRAINT "scheduled_class_trainer_trainer_id_resource_id_fk" FOREIGN KEY ("trainer_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "week_template" ADD CONSTRAINT "week_template_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_template_id_week_template_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."week_template"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_hall_id_hall_id_fk" FOREIGN KEY ("hall_id") REFERENCES "public"."hall"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_class_type_id_class_type_id_fk" FOREIGN KEY ("class_type_id") REFERENCES "public"."class_type"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_hall_id_resource_id_fk" FOREIGN KEY ("hall_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "week_template_row" ADD CONSTRAINT "week_template_row_class_type_id_resource_id_fk" FOREIGN KEY ("class_type_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "week_template_row_trainer" ADD CONSTRAINT "week_template_row_trainer_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "week_template_row_trainer" ADD CONSTRAINT "week_template_row_trainer_row_id_week_template_row_id_fk" FOREIGN KEY ("row_id") REFERENCES "public"."week_template_row"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "week_template_row_trainer" ADD CONSTRAINT "week_template_row_trainer_trainer_id_trainer_id_fk" FOREIGN KEY ("trainer_id") REFERENCES "public"."trainer"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "week_template_row_trainer" ADD CONSTRAINT "week_template_row_trainer_trainer_id_resource_id_fk" FOREIGN KEY ("trainer_id") REFERENCES "public"."resource"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization" ADD CONSTRAINT "organization_currency_currency_code_fk" FOREIGN KEY ("currency") REFERENCES "public"."currency"("code") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization" ADD CONSTRAINT "organization_preset_id_preset_id_fk" FOREIGN KEY ("preset_id") REFERENCES "public"."preset"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_resource_type" ADD CONSTRAINT "organization_resource_type_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -420,17 +373,14 @@ ALTER TABLE "organization_section" ADD CONSTRAINT "organization_section_organiza
 ALTER TABLE "organization_session" ADD CONSTRAINT "organization_session_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_session" ADD CONSTRAINT "organization_session_impersonated_by_platform_administrator_id_fk" FOREIGN KEY ("impersonated_by") REFERENCES "public"."platform_administrator"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "organization_staff" ADD CONSTRAINT "organization_staff_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "staff_trainer" ADD CONSTRAINT "staff_trainer_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "staff_trainer" ADD CONSTRAINT "staff_trainer_staff_id_organization_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "public"."organization_staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "staff_trainer" ADD CONSTRAINT "staff_trainer_trainer_id_trainer_id_fk" FOREIGN KEY ("trainer_id") REFERENCES "public"."trainer"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "class_type_organization_id_idx" ON "class_type" USING btree ("organization_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "class_type_file_class_type_id_index_unique" ON "class_type_file" USING btree ("class_type_id","index");--> statement-breakpoint
-CREATE INDEX "trainer_organization_id_idx" ON "trainer" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "trainer_class_type_organization_id_idx" ON "trainer_class_type" USING btree ("organization_id");--> statement-breakpoint
-CREATE INDEX "trainer_class_type_class_type_id_idx" ON "trainer_class_type" USING btree ("class_type_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "trainer_file_trainer_id_index_unique" ON "trainer_file" USING btree ("trainer_id","index");--> statement-breakpoint
-CREATE INDEX "hall_organization_id_idx" ON "hall" USING btree ("organization_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "hall_file_hall_id_index_unique" ON "hall_file" USING btree ("hall_id","index");--> statement-breakpoint
+ALTER TABLE "staff_resource" ADD CONSTRAINT "staff_resource_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "staff_resource" ADD CONSTRAINT "staff_resource_staff_id_organization_staff_id_fk" FOREIGN KEY ("staff_id") REFERENCES "public"."organization_staff"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "staff_resource" ADD CONSTRAINT "staff_resource_resource_id_resource_id_fk" FOREIGN KEY ("resource_id") REFERENCES "public"."resource"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "resource_organization_id_idx" ON "resource" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "resource_resource_type_id_idx" ON "resource" USING btree ("resource_type_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "resource_file_resource_id_index_unique" ON "resource_file" USING btree ("resource_id","index");--> statement-breakpoint
+CREATE INDEX "resource_relation_organization_id_idx" ON "resource_relation" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "resource_relation_resource_b_id_idx" ON "resource_relation" USING btree ("resource_b_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "platform_administrator_one_row" ON "platform_administrator" ((true));--> statement-breakpoint
 CREATE INDEX "scheduled_class_organization_id_idx" ON "scheduled_class" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "scheduled_class_hall_date_idx" ON "scheduled_class" USING btree ("hall_id","date");--> statement-breakpoint
@@ -449,8 +399,8 @@ CREATE INDEX "organization_resource_type_organization_id_idx" ON "organization_r
 CREATE INDEX "organization_session_email_idx" ON "organization_session" USING btree ("organization_id","email");--> statement-breakpoint
 CREATE UNIQUE INDEX "organization_staff_email_unique" ON "organization_staff" USING btree ("organization_id","email");--> statement-breakpoint
 CREATE INDEX "organization_staff_email_idx" ON "organization_staff" USING btree ("email");--> statement-breakpoint
-CREATE UNIQUE INDEX "staff_trainer_trainer_id_unique" ON "staff_trainer" USING btree ("trainer_id");--> statement-breakpoint
-CREATE INDEX "staff_trainer_organization_id_idx" ON "staff_trainer" USING btree ("organization_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "staff_resource_resource_id_unique" ON "staff_resource" USING btree ("resource_id");--> statement-breakpoint
+CREATE INDEX "staff_resource_organization_id_idx" ON "staff_resource" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "preset_name_unique" ON "preset" USING btree ("name");
 --> statement-breakpoint
 CREATE EXTENSION IF NOT EXISTS btree_gist;
@@ -459,19 +409,11 @@ ALTER TABLE "scheduled_class" ADD CONSTRAINT "scheduled_class_hall_no_overlap" E
 --> statement-breakpoint
 ALTER TABLE "scheduled_class_trainer" ADD CONSTRAINT "scheduled_class_trainer_no_overlap" EXCLUDE USING gist ("trainer_id" WITH =, "during" WITH &&) WHERE ("during" IS NOT NULL);
 --> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE ON "class_type" TO studio_api;
---> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON "class_type_file" TO studio_api;
---> statement-breakpoint
 GRANT SELECT ON "currency" TO studio_api;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON "foundation_check" TO platform_api;
 --> statement-breakpoint
 GRANT SELECT ON "foundation_check" TO studio_api;
---> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE ON "hall" TO studio_api;
---> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON "hall_file" TO studio_api;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON "handoff_code" TO platform_api;
 --> statement-breakpoint
@@ -517,13 +459,13 @@ GRANT SELECT, INSERT, UPDATE ON "session" TO platform_api;
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE, DELETE ON "sign_in_code" TO platform_api;
 --> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON "staff_trainer" TO studio_api;
+GRANT SELECT, INSERT, UPDATE ON "resource" TO studio_api;
 --> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE ON "trainer" TO studio_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON "resource_file" TO studio_api;
 --> statement-breakpoint
-GRANT SELECT, INSERT, DELETE ON "trainer_class_type" TO studio_api;
+GRANT SELECT, INSERT, DELETE ON "resource_relation" TO studio_api;
 --> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON "trainer_file" TO studio_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON "staff_resource" TO studio_api;
 --> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE, DELETE ON "week_template" TO studio_api;
 --> statement-breakpoint

@@ -401,14 +401,14 @@ export class WeekTemplatesService {
 
   private async classTypeName(id: string): Promise<string> {
     const rows = await this.db.execute<{ name: string }>(
-      sql`select name from class_type where id = ${id}`,
+      sql`select name from resource where id = ${id}`,
     );
     return rows.rows[0]?.name ?? '';
   }
 
   private async trainerName(id: string): Promise<string> {
     const rows = await this.db.execute<{ name: string }>(
-      sql`select name from trainer where id = ${id}`,
+      sql`select name from resource where id = ${id}`,
     );
     return rows.rows[0]?.name ?? '';
   }

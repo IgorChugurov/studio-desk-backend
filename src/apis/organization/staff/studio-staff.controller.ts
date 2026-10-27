@@ -23,7 +23,7 @@ const roleField = z.enum(['administrator', 'accountant', 'specialist'], {
   error: 'Choose a role',
 });
 
-const trainerIdField = z.preprocess((value) => {
+const resourceIdField = z.preprocess((value) => {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
@@ -33,25 +33,25 @@ const addBody = z
   .object({
     email: emailField,
     role: roleField,
-    trainerId: trainerIdField,
+    resourceId: resourceIdField,
   })
   .superRefine((value, ctx) => {
     if (value.role === 'specialist') {
-      if (value.trainerId == null) {
+      if (value.resourceId == null) {
         ctx.addIssue({
           code: 'custom',
-          path: ['trainerId'],
-          message: 'Select a trainer',
+          path: ['resourceId'],
+          message: 'Select a specialist',
           params: { fieldCode: 'REQUIRED' },
         });
       }
       return;
     }
-    if (value.trainerId) {
+    if (value.resourceId) {
       ctx.addIssue({
         code: 'custom',
-        path: ['trainerId'],
-        message: 'A trainer is only linked to the trainer role',
+        path: ['resourceId'],
+        message: 'A specialist is only linked to the specialist role',
         params: { fieldCode: 'INVALID_VALUE' },
       });
     }
@@ -60,26 +60,26 @@ const addBody = z
 const updateBody = z
   .object({
     role: roleField.optional(),
-    trainerId: trainerIdField,
+    resourceId: resourceIdField,
   })
   .superRefine((value, ctx) => {
     if (
       value.role !== undefined &&
       value.role !== 'specialist' &&
-      value.trainerId
+      value.resourceId
     ) {
       ctx.addIssue({
         code: 'custom',
-        path: ['trainerId'],
-        message: 'A trainer is only linked to the trainer role',
+        path: ['resourceId'],
+        message: 'A specialist is only linked to the specialist role',
         params: { fieldCode: 'INVALID_VALUE' },
       });
     }
-    if (value.role === 'specialist' && value.trainerId === null) {
+    if (value.role === 'specialist' && value.resourceId === null) {
       ctx.addIssue({
         code: 'custom',
-        path: ['trainerId'],
-        message: 'Select a trainer',
+        path: ['resourceId'],
+        message: 'Select a specialist',
         params: { fieldCode: 'REQUIRED' },
       });
     }
@@ -110,7 +110,7 @@ export class StudioStaffController {
   @ApiResponse({
     status: 409,
     description:
-      'STAFF_ALREADY_ADDED, EMAIL_IS_OWNER, or TRAINER_ALREADY_LINKED',
+      'STAFF_ALREADY_ADDED, EMAIL_IS_OWNER, or SPECIALIST_ALREADY_LINKED',
   })
   add(
     @Req() request: StudioRequest,

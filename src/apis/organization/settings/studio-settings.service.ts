@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { ApiError } from '../../../common/errors/api-error.js';
 import type {
   BillingConfig,
@@ -8,13 +8,11 @@ import type {
 } from '../../../common/organization-config.js';
 import { type Database, STUDIO_DB } from '../../../database/database.module.js';
 import {
-  classType,
   currency,
-  hall,
   organization,
   organizationResourceType,
-  staffTrainer,
-  trainer,
+  resource,
+  staffResource,
 } from '../../../database/schema/index.js';
 import { StudioAccessService } from '../access/studio-access.service.js';
 import type { StudioSessionInfo } from '../auth/studio-auth.service.js';
@@ -126,9 +124,9 @@ export class StudioSettingsService {
   }
 
   /**
-   * Stage 1 still stores halls, trainers and class types in their own tables.
-   * A place type is in use when the organization has a hall, an offering when
-   * it has a class type, and a person type when it has a trainer or a staff link.
+   * A resource type is in use when a catalog resource still points at it.
+   * Turning `person` off is refused when a staff member is linked to a
+   * resource of that type.
    */
   private async replaceResourceTypes(
     organizationId: string,
@@ -159,13 +157,10 @@ export class StudioSettingsService {
     if (removed.length > 0 || personDisabled.length > 0) {
       const usage = await this.usage(organizationId);
       const blocked =
-        removed.some(
-          (row) =>
-            (row.role === 'place' && usage.halls > 0) ||
-            (row.role === 'offering' && usage.classTypes > 0) ||
-            (row.person && (usage.trainers > 0 || usage.staffLinks > 0)),
-        ) ||
-        (personDisabled.length > 0 && usage.staffLinks > 0);
+        removed.some((row) => usage.usedTypeIds.has(row.id)) ||
+        personDisabled.some(
+          (type) => type.id !== undefined && usage.linkedTypeIds.has(type.id),
+        );
       if (blocked) {
         throw new ApiError({
           statusCode: 409,
@@ -176,14 +171,17 @@ export class StudioSettingsService {
       }
     }
     await this.db.transaction(async (tx) => {
+      // Free the unique (organization, sort order) pairs before rewriting them.
       await tx
-        .delete(organizationResourceType)
+        .update(organizationResourceType)
+        .set({
+          sortOrder: sql`${organizationResourceType.sortOrder} + 1000`,
+        })
         .where(eq(organizationResourceType.organizationId, organizationId));
+      const kept: string[] = [];
       for (let index = 0; index < next.length; index += 1) {
         const type = next[index]!;
-        await tx.insert(organizationResourceType).values({
-          ...(type.id ? { id: type.id } : {}),
-          organizationId,
+        const values = {
           sortOrder: index,
           role: type.role,
           labels: type.labels,
@@ -195,35 +193,55 @@ export class StudioSettingsService {
           required: type.required,
           multiple: type.multiple,
           conflictMode: type.conflictMode,
-        });
+          updatedAt: new Date(),
+        };
+        if (type.id) {
+          kept.push(type.id);
+          await tx
+            .update(organizationResourceType)
+            .set(values)
+            .where(
+              and(
+                eq(organizationResourceType.id, type.id),
+                eq(organizationResourceType.organizationId, organizationId),
+              ),
+            );
+        } else {
+          await tx.insert(organizationResourceType).values({
+            organizationId,
+            ...values,
+          });
+        }
+      }
+      const removedIds = existing
+        .map((row) => row.id)
+        .filter((id) => !kept.includes(id));
+      if (removedIds.length > 0) {
+        await tx
+          .delete(organizationResourceType)
+          .where(
+            and(
+              eq(organizationResourceType.organizationId, organizationId),
+              inArray(organizationResourceType.id, removedIds),
+            ),
+          );
       }
     });
   }
 
   private async usage(organizationId: string) {
-    const [halls, trainers, classTypes, staffLinks] = await Promise.all([
-      this.db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(hall)
-        .where(eq(hall.organizationId, organizationId)),
-      this.db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(trainer)
-        .where(eq(trainer.organizationId, organizationId)),
-      this.db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(classType)
-        .where(eq(classType.organizationId, organizationId)),
-      this.db
-        .select({ total: sql<number>`count(*)::int` })
-        .from(staffTrainer)
-        .where(eq(staffTrainer.organizationId, organizationId)),
-    ]);
+    const resources = await this.db
+      .select({ resourceTypeId: resource.resourceTypeId })
+      .from(resource)
+      .where(eq(resource.organizationId, organizationId));
+    const linked = await this.db
+      .select({ resourceTypeId: resource.resourceTypeId })
+      .from(staffResource)
+      .innerJoin(resource, eq(resource.id, staffResource.resourceId))
+      .where(eq(staffResource.organizationId, organizationId));
     return {
-      halls: halls[0]?.total ?? 0,
-      trainers: trainers[0]?.total ?? 0,
-      classTypes: classTypes[0]?.total ?? 0,
-      staffLinks: staffLinks[0]?.total ?? 0,
+      usedTypeIds: new Set(resources.map((row) => row.resourceTypeId)),
+      linkedTypeIds: new Set(linked.map((row) => row.resourceTypeId)),
     };
   }
 }

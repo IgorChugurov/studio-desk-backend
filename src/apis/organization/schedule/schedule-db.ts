@@ -65,8 +65,9 @@ export async function hallOf(
     time_zone: string;
   }>(sql`
     select id, type, name, time_zone
-      from hall
+      from resource
      where id = ${hallId} and organization_id = ${organizationId}
+       and type is not null
   `);
   const row = rows.rows[0];
   if (!row) {
@@ -132,12 +133,15 @@ export async function assertClassRefs(
   input: Pick<ClassFields, 'classTypeId' | 'trainerIds'>,
 ): Promise<void> {
   const types = await db.execute<{ id: string }>(sql`
-    select id from class_type
+    select id from resource
      where id = ${input.classTypeId} and organization_id = ${organizationId}
+       and default_duration is not null
   `);
   const trainers = await db.execute<{ id: string }>(sql`
-    select id from trainer
+    select id from resource
      where organization_id = ${organizationId}
+       and type is null
+       and default_duration is null
        and id in (${sql.join(
          input.trainerIds.map((id) => sql`${id}`),
          sql`, `,
@@ -332,8 +336,8 @@ export async function findBusy(
            to_char(c.start_time, 'HH24:MI') as start_time,
            c.duration_minutes, 'hall'::text as kind
       from scheduled_class c
-      join class_type ct on ct.id = c.class_type_id
-      join hall h on h.id = c.hall_id
+      join resource ct on ct.id = c.class_type_id
+      join resource h on h.id = c.hall_id
      where c.hall_id = ${input.hallId}
        and c.id <> ${except}
        and not c.cancelled
@@ -349,9 +353,9 @@ export async function findBusy(
            c.duration_minutes, 'trainer'::text as kind
       from scheduled_class_trainer t
       join scheduled_class c on c.id = t.class_id
-      join class_type ct on ct.id = c.class_type_id
-      join hall h on h.id = c.hall_id
-      join trainer tr on tr.id = t.trainer_id
+      join resource ct on ct.id = c.class_type_id
+      join resource h on h.id = c.hall_id
+      join resource tr on tr.id = t.trainer_id
      where t.trainer_id in (${sql.join(
        input.trainerIds.map((id) => sql`${id}`),
        sql`, `,
@@ -436,7 +440,7 @@ async function readClassRow(
            c.duration_minutes, c.class_type_id, c.audience, c.format, c.places,
            h.time_zone
       from scheduled_class c
-      join hall h on h.id = c.hall_id
+      join resource h on h.id = c.hall_id
      where c.id = ${classId}
   `);
   const row = rows.rows[0];
@@ -532,9 +536,9 @@ export async function zoneConflict(
       join scheduled_class_trainer theirs
         on theirs.trainer_id = mine.trainer_id and theirs.class_id <> m.id
       join scheduled_class other on other.id = theirs.class_id and not other.cancelled
-      join class_type ct on ct.id = other.class_type_id
-      join hall h on h.id = other.hall_id
-      join trainer tr on tr.id = mine.trainer_id
+      join resource ct on ct.id = other.class_type_id
+      join resource h on h.id = other.hall_id
+      join resource tr on tr.id = mine.trainer_id
      where other.hall_id <> ${hallId}
        and tstzrange(m.starts_at, m.ends_at, '[)') && theirs.during
      order by other.date, other.start_time, other.id
@@ -567,8 +571,8 @@ export async function listOverlaps(
            c.duration_minutes, 'hall'::text as kind, 'hall'::text as reason,
            c.starts_at <= now() as started
       from scheduled_class c
-      join class_type ct on ct.id = c.class_type_id
-      join hall h on h.id = c.hall_id
+      join resource ct on ct.id = c.class_type_id
+      join resource h on h.id = c.hall_id
      where c.hall_id = ${input.hallId}
        and not c.cancelled
        and tstzrange(c.starts_at, c.ends_at, '[)') && ${range}
@@ -578,9 +582,9 @@ export async function listOverlaps(
            'trainer', 'trainer', c.starts_at <= now()
       from scheduled_class_trainer t
       join scheduled_class c on c.id = t.class_id
-      join class_type ct on ct.id = c.class_type_id
-      join hall h on h.id = c.hall_id
-      join trainer tr on tr.id = t.trainer_id
+      join resource ct on ct.id = c.class_type_id
+      join resource h on h.id = c.hall_id
+      join resource tr on tr.id = t.trainer_id
      where t.trainer_id in (${sql.join(
        input.trainerIds.map((id) => sql`${id}`),
        sql`, `,

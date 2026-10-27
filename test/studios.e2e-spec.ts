@@ -445,7 +445,7 @@ describe('studios', () => {
       loadEnv().ACCESS_TOKEN_SECRET,
     );
     const halls = await request(app.getHttpServer())
-      .get('/api/organization/halls')
+      .get('/api/organization/resources')
       .set('Authorization', `Bearer ${organizationToken}`);
     expect(halls.status).toBe(200);
 
@@ -464,7 +464,7 @@ describe('studios', () => {
     ]);
 
     const blocked = await request(app.getHttpServer())
-      .get('/api/organization/halls')
+      .get('/api/organization/resources')
       .set('Authorization', `Bearer ${organizationToken}`);
     expect(blocked.status).toBe(403);
     expect(blocked.body.code).toBe('FORBIDDEN');

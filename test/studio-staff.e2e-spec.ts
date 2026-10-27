@@ -122,7 +122,7 @@ describe('studio staff and access', () => {
     expect(added.status).toBe(201);
     expect(added.body.email).toBe(OLGA);
     expect(added.body.role).toBe('administrator');
-    expect(added.body.trainerId).toBeNull();
+    expect(added.body.resourceId).toBeNull();
 
     const olgaToken = await sessionFor(yoga, OLGA);
     const before = await authed(olgaToken).get('/api/organization/me');
@@ -199,7 +199,7 @@ describe('studio staff and access', () => {
     const list = await owner.get('/api/organization/staff');
     expect(list.body.items).toHaveLength(1);
     expect(list.body.items[0].email).toBe(OLGA);
-    expect(list.body.items[0].trainerId).toBeNull();
+    expect(list.body.items[0].resourceId).toBeNull();
   });
 
   it('links a trainer staff member to one catalog trainer', async () => {
@@ -218,9 +218,9 @@ describe('studio staff and access', () => {
     expect(missing.body.errors).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          field: 'trainerId',
+          field: 'resourceId',
           code: 'REQUIRED',
-          message: 'Select a trainer',
+          message: 'Select a specialist',
         }),
       ]),
     );
@@ -228,12 +228,12 @@ describe('studio staff and access', () => {
     const withRole = await owner.post('/api/organization/staff', {
       email: OLGA,
       role: 'administrator',
-      trainerId: anna,
+      resourceId: anna,
     });
     expect(withRole.status).toBe(400);
     expect(withRole.body.errors).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ field: 'trainerId', code: 'INVALID_VALUE' }),
+        expect.objectContaining({ field: 'resourceId', code: 'INVALID_VALUE' }),
       ]),
     );
     expect(
@@ -246,41 +246,41 @@ describe('studio staff and access', () => {
     const otherStudio = await owner.post('/api/organization/staff', {
       email: 'anna@example.com',
       role: 'specialist',
-      trainerId: stranger,
+      resourceId: stranger,
     });
     expect(otherStudio.status).toBe(400);
     expect(otherStudio.body.errors).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ field: 'trainerId', code: 'INVALID_VALUE' }),
+        expect.objectContaining({ field: 'resourceId', code: 'INVALID_VALUE' }),
       ]),
     );
 
     const added = await owner.post('/api/organization/staff', {
       email: 'Anna@Example.com',
       role: 'specialist',
-      trainerId: anna,
+      resourceId: anna,
     });
     expect(added.status).toBe(201);
     expect(added.body).toMatchObject({
       email: 'anna@example.com',
       role: 'specialist',
-      trainerId: anna,
+      resourceId: anna,
     });
 
     const again = await owner.post('/api/organization/staff', {
       email: 'boris@example.com',
       role: 'specialist',
-      trainerId: anna,
+      resourceId: anna,
     });
     expect(again.status).toBe(409);
-    expect(again.body.code).toBe('TRAINER_ALREADY_LINKED');
-    expect(again.body.field).toBe('trainerId');
+    expect(again.body.code).toBe('SPECIALIST_ALREADY_LINKED');
+    expect(again.body.field).toBe('resourceId');
 
     const annaToken = await sessionFor(yoga, 'anna@example.com');
     const me = await authed(annaToken).get('/api/organization/me');
     expect(me.status).toBe(200);
     expect(me.body.role).toBe('specialist');
-    expect(me.body.trainerId).toBeUndefined();
+    expect(me.body.resourceId).toBeUndefined();
     expect(me.body.sections).toEqual(['schedule', 'clients', 'accounting']);
     expect(
       (await authed(annaToken).get('/api/organization/staff')).status,
@@ -288,27 +288,27 @@ describe('studio staff and access', () => {
 
     const listed = await owner.get('/api/organization/staff');
     expect(listed.body.items).toEqual([
-      expect.objectContaining({ email: 'anna@example.com', trainerId: anna }),
+      expect.objectContaining({ email: 'anna@example.com', resourceId: anna }),
     ]);
 
     const kept = await owner.patch(`/api/organization/staff/${added.body.id}`, {
-      trainerId: anna,
+      resourceId: anna,
     });
     expect(kept.status).toBe(200);
-    expect(kept.body.trainerId).toBe(anna);
+    expect(kept.body.resourceId).toBe(anna);
 
     const replaced = await owner.patch(
       `/api/organization/staff/${added.body.id}`,
       {
-        trainerId: boris,
+        resourceId: boris,
       },
     );
     expect(replaced.status).toBe(200);
-    expect(replaced.body.trainerId).toBe(boris);
+    expect(replaced.body.resourceId).toBe(boris);
 
     const leaveWithCard = await owner.patch(
       `/api/organization/staff/${added.body.id}`,
-      { role: 'accountant', trainerId: anna },
+      { role: 'accountant', resourceId: anna },
     );
     expect(leaveWithCard.status).toBe(400);
     const stillTrainer = await owner.get(
@@ -316,21 +316,21 @@ describe('studio staff and access', () => {
     );
     expect(stillTrainer.body).toMatchObject({
       role: 'specialist',
-      trainerId: boris,
+      resourceId: boris,
     });
 
     const left = await owner.patch(`/api/organization/staff/${added.body.id}`, {
       role: 'accountant',
     });
     expect(left.status).toBe(200);
-    expect(left.body).toMatchObject({ role: 'accountant', trainerId: null });
+    expect(left.body).toMatchObject({ role: 'accountant', resourceId: null });
     expect(
-      await sql(`select trainer_id from staff_trainer where staff_id = $1`, [
+      await sql(`select resource_id from staff_resource where staff_id = $1`, [
         added.body.id,
       ]),
     ).toHaveLength(0);
     expect(
-      await sql(`select id from trainer where id = $1`, [boris]),
+      await sql(`select id from resource where id = $1`, [boris]),
     ).toHaveLength(1);
 
     const become = await owner.patch(
@@ -342,7 +342,7 @@ describe('studio staff and access', () => {
     expect(become.status).toBe(400);
     expect(become.body.errors).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ field: 'trainerId', code: 'REQUIRED' }),
+        expect.objectContaining({ field: 'resourceId', code: 'REQUIRED' }),
       ]),
     );
     const stillAccountant = await owner.get(
@@ -352,20 +352,20 @@ describe('studio staff and access', () => {
 
     const back = await owner.patch(`/api/organization/staff/${added.body.id}`, {
       role: 'specialist',
-      trainerId: anna,
+      resourceId: anna,
     });
     expect(back.status).toBe(200);
-    expect(back.body.trainerId).toBe(anna);
+    expect(back.body.resourceId).toBe(anna);
 
     const removed = await owner.del(`/api/organization/staff/${added.body.id}`);
     expect(removed.status).toBe(204);
     expect(
-      await sql(`select staff_id from staff_trainer where staff_id = $1`, [
+      await sql(`select staff_id from staff_resource where staff_id = $1`, [
         added.body.id,
       ]),
     ).toHaveLength(0);
     expect(
-      await sql(`select id from trainer where id = $1`, [anna]),
+      await sql(`select id from resource where id = $1`, [anna]),
     ).toHaveLength(1);
     expect((await authed(annaToken).get('/api/organization/me')).status).toBe(
       401,
@@ -380,20 +380,20 @@ describe('studio staff and access', () => {
       owner.post('/api/organization/staff', {
         email: 'one@example.com',
         role: 'specialist',
-        trainerId: anna,
+        resourceId: anna,
       }),
       owner.post('/api/organization/staff', {
         email: 'two@example.com',
         role: 'specialist',
-        trainerId: anna,
+        resourceId: anna,
       }),
     ]);
     const statuses = [first.status, second.status].sort((a, b) => a - b);
     expect(statuses).toEqual([201, 409]);
     const refused = first.status === 409 ? first : second;
-    expect(refused.body.code).toBe('TRAINER_ALREADY_LINKED');
+    expect(refused.body.code).toBe('SPECIALIST_ALREADY_LINKED');
     const links = await sql<{ staff_id: string }>(
-      `select staff_id from staff_trainer where trainer_id = $1`,
+      `select staff_id from staff_resource where resource_id = $1`,
       [anna],
     );
     expect(links).toHaveLength(1);
@@ -404,7 +404,12 @@ async function createTrainer(organizationId: string, name: string) {
   const pool = ownerPool();
   try {
     const { rows } = await pool.query<{ id: string }>(
-      `insert into trainer (organization_id, name) values ($1, $2) returning id`,
+      `insert into resource (organization_id, resource_type_id, name)
+       select $1, id, $2
+         from organization_resource_type
+        where organization_id = $1 and person = true
+        limit 1
+       returning id`,
       [organizationId, name],
     );
     return rows[0]!.id;

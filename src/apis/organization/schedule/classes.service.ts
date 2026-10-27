@@ -228,7 +228,7 @@ export class ClassesService {
 
   private async zoneOf(hallId: string): Promise<string> {
     const rows = await this.db.execute<{ time_zone: string }>(
-      sql`select time_zone from hall where id = ${hallId}`,
+      sql`select time_zone from resource where id = ${hallId}`,
     );
     return rows.rows[0]?.time_zone ?? 'UTC';
   }
@@ -248,7 +248,9 @@ export class ClassesService {
 
   private async hallInStudio(organizationId: string, hallId: string) {
     const rows = await this.db.execute<{ id: string }>(sql`
-      select id from hall where id = ${hallId} and organization_id = ${organizationId}
+      select id from resource
+       where id = ${hallId} and organization_id = ${organizationId}
+         and type is not null
     `);
     if (!rows.rows[0]) throw ApiError.notFound('Hall not found');
   }

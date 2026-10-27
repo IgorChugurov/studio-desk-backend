@@ -12,16 +12,6 @@ export const expectedGrants: Record<
   string,
   Record<ApiDbRole, TablePrivilege[]>
 > = {
-  class_type: {
-    platform_api: [],
-    studio_api: ['SELECT', 'INSERT', 'UPDATE'],
-    public_api: [],
-  },
-  class_type_file: {
-    platform_api: [],
-    studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
-    public_api: [],
-  },
   currency: {
     platform_api: [],
     studio_api: ['SELECT'],
@@ -30,16 +20,6 @@ export const expectedGrants: Record<
   foundation_check: {
     platform_api: ['SELECT', 'INSERT'],
     studio_api: ['SELECT'],
-    public_api: [],
-  },
-  hall: {
-    platform_api: [],
-    studio_api: ['SELECT', 'INSERT', 'UPDATE'],
-    public_api: [],
-  },
-  hall_file: {
-    platform_api: [],
-    studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
     public_api: [],
   },
   handoff_code: {
@@ -97,6 +77,21 @@ export const expectedGrants: Record<
     studio_api: [],
     public_api: [],
   },
+  resource: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE'],
+    public_api: [],
+  },
+  resource_file: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+    public_api: [],
+  },
+  resource_relation: {
+    platform_api: [],
+    studio_api: ['SELECT', 'INSERT', 'DELETE'],
+    public_api: [],
+  },
   role_section: {
     platform_api: [],
     studio_api: ['SELECT'],
@@ -122,22 +117,7 @@ export const expectedGrants: Record<
     studio_api: [],
     public_api: [],
   },
-  staff_trainer: {
-    platform_api: [],
-    studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
-    public_api: [],
-  },
-  trainer: {
-    platform_api: [],
-    studio_api: ['SELECT', 'INSERT', 'UPDATE'],
-    public_api: [],
-  },
-  trainer_class_type: {
-    platform_api: [],
-    studio_api: ['SELECT', 'INSERT', 'DELETE'],
-    public_api: [],
-  },
-  trainer_file: {
+  staff_resource: {
     platform_api: [],
     studio_api: ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
     public_api: [],

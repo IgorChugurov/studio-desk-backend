@@ -213,8 +213,10 @@ describe('studio settings', () => {
     expect(replacedPlace.status).toBe(200);
 
     await sql(
-      `insert into hall (organization_id, name, address, time_zone)
-       values ($1, 'Main', 'Street 1', 'Europe/Bratislava')`,
+      `insert into resource (organization_id, resource_type_id, name, type, address, time_zone)
+       select $1, id, 'Main', 'ordinary', 'Street 1', 'Europe/Bratislava'
+         from organization_resource_type
+        where organization_id = $1 and role = 'place'`,
       [id],
     );
     const current = await owner.get('/api/organization/settings');
@@ -231,5 +233,51 @@ describe('studio settings', () => {
     });
     expect(inUse.status).toBe(409);
     expect(inUse.body.code).toBe('RESOURCE_TYPE_IN_USE');
+  });
+
+  it('refuses disabling person only when a staff member is linked to that type', async () => {
+    const id = await createStudio();
+    const owner = authed(await sessionFor(id, OWNER));
+    const settings = await owner.get('/api/organization/settings');
+    const types = settings.body.catalogConfig.resourceTypes as Array<{
+      id: string;
+      person: boolean;
+    }>;
+    const person = types.find((type) => type.person)!;
+    const created = await sql<{ id: string }>(
+      `insert into resource (organization_id, resource_type_id, name)
+       values ($1, $2, 'Anna') returning id`,
+      [id, person.id],
+    );
+    const staff = await sql<{ id: string }>(
+      `insert into organization_staff (organization_id, email, role)
+       values ($1, 'anna@example.com', 'specialist') returning id`,
+      [id],
+    );
+    await sql(
+      `insert into staff_resource (organization_id, staff_id, resource_id)
+       values ($1, $2, $3)`,
+      [id, staff[0]!.id, created[0]!.id],
+    );
+    const withoutPerson = {
+      catalogConfig: {
+        resourceTypes: types.map((type) =>
+          type.id === person.id ? { ...type, person: false } : type,
+        ),
+      },
+    };
+    const blocked = await owner.patch(
+      '/api/organization/settings',
+      withoutPerson,
+    );
+    expect(blocked.status).toBe(409);
+    expect(blocked.body.code).toBe('RESOURCE_TYPE_IN_USE');
+
+    await sql(`delete from organization_staff where id = $1`, [staff[0]!.id]);
+    const allowed = await owner.patch(
+      '/api/organization/settings',
+      withoutPerson,
+    );
+    expect(allowed.status).toBe(200);
   });
 });
