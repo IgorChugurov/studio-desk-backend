@@ -1,0 +1,13 @@
+---
+description: StudioDesk backend repository commands and the organization API database login
+globs: **/*
+alwaysApply: false
+---
+
+# StudioDesk backend
+
+Canon wins. Rules: `studio-desk-docs/04-engineering-rules/backend.md`. Architecture: `studio-desk-docs/03-architecture/`.
+
+- Main branch: `development`. A push to `development` deploys after green tests.
+- Commands, with the exact scripts in `README.md`: `pnpm test`, `pnpm test:e2e`, `pnpm db:up`, `pnpm db:down`, `pnpm db:reset`, `pnpm db:generate`, `pnpm db:migrate`, `pnpm start:dev`.
+- The PostgreSQL login of the organization API is `studio_api` (`src/database/expected-grants.ts`). Grants use that name.

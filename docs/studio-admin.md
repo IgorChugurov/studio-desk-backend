@@ -1,16 +1,16 @@
 # Вход в админку студии
 
-**Канон:** `studio-desk-docs/01-product/studio-admin/overview.md`, `studio-desk-docs/03-architecture/authentication.md`
-**Контракт:** `studio-desk-docs/01-product/studio-admin/api-contract.md`
+**Канон:** `studio-desk-docs/01-product/organization-admin/overview.md`, `studio-desk-docs/03-architecture/authentication.md`
+**Контракт:** `studio-desk-docs/01-product/organization-admin/api-contract.md`
 
-Семь адресов под `/api/studio/auth`: запросить код, войти, выбрать студию, сменить студию, обменять код входа под студией, обновить вход, выйти. Короткий токен живёт 15 минут и в базе не хранится. Долгий токен лежит в cookie `sd_studio_refresh` (путь `/api/studio/auth`), в базе только его хеш. `GET /me` отдаёт роль, разделы и язык интерфейса. `PATCH /me/language` запоминает язык по почте. Пока строки нет, в ответе `interfaceLanguage` равен `null`, интерфейс на английском. Сервер cookie языка не ставит.
+Адреса, cookie и путь этого API — в контракте. Код cookie: `src/apis/organization/auth/studio-cookie.ts`. `GET /me` отдаёт роль, разделы и язык интерфейса. `PATCH /me/language` запоминает язык по почте. Пока строки нет, в ответе `interfaceLanguage` равен `null`, интерфейс на английском. Сервер cookie языка не ставит.
 
 ## Таблицы
 
 - `studio_sign_in_code` — один текущий код на адрес, как `sign_in_code` платформы, но отдельная таблица: один e-mail может запросить код в обоих API, и коды не перезаписывают друг друга.
 - `studio_session` — один вход одного человека в одну студию: `studio_id`, `email`, хеши refresh-токенов, `impersonated_by` (заполняется обменом кода входа под студией). Студия сессии не меняется.
 - `studio_selection_ticket` — билет выбора студии, одноразовый, 300 секунд. В базе хеш. Список студий в билете не хранится: при выборе он считается заново. Новый билет заменяет все прежние билеты этого e-mail (они удаляются), заодно удаляются чужие билеты, протухшие больше часа назад.
-- `studio_staff` — сотрудники студии: `studio_id`, `email`, `role` (`administrator` или `accountant`). Вход только читает её; управление сотрудниками приходит в фазе 5. Владелец в этой таблице не хранится, он записан в `studio.owner_email`.
+- `studio_staff` — сотрудники студии: `studio_id`, `email`, `role` (`administrator` или `accountant`). Код управления: `src/apis/organization/staff/`. Владелец в этой таблице не хранится, он записан в `studio.owner_email`.
 - `currency` — разрешённые валюты: `EUR`, `UAH`, `USD`. Список заполняет миграция. Настройки студии лежат на самой строке `studio`: `language`, `country`, `currency`, `time_zone`. У новой и у уже существующей студии стоят English (`en`), Словакия (`SK`), евро, `Europe/Bratislava`.
 - `role_section` — какие разделы открыты роли. Строка значит «да». Миграция заполняет её один раз. У тренера расписание, клиенты и учёт отмечены как открытые; «только свои» решают темы этих разделов.
 - `interface_language` — язык интерфейса человека: почта и `en`, `sk` или `uk`. Одна строка на почту, общая для всех его студий. Нет строки — английский.
@@ -39,4 +39,4 @@
 
 ## Проверка
 
-Интеграционные тесты: `test/studio-auth.e2e-spec.ts`. Ручная проверка: `StudioDesk_Studio.postman_collection.json`, локально `http://localhost:3000/api/studio`. Для ручной проверки в базе должны быть студия и, при необходимости, строка в `studio_staff` (сотрудников пока не создаёт ни один адрес API).
+Интеграционные тесты: `test/studio-auth.e2e-spec.ts`. Ручная проверка: `StudioDesk_Studio.postman_collection.json`, локально `http://localhost:3000/api/organization`. Для ручной проверки в базе должны быть студия и, при необходимости, строка в `studio_staff`.

@@ -1,6 +1,8 @@
 # StudioDesk backend
 
-Nest application with three APIs (`/api/platform`, `/api/studio`, `/api/public`) over one PostgreSQL database.
+If this file disagrees with `studio-desk-docs`, the canon wins.
+
+Nest application with three APIs over one PostgreSQL database. Paths: `studio-desk-docs/03-architecture/backend-structure.md` (`/api/platform`, `/api/organization`, `/api/public`).
 
 Architecture and rules live in `studio-desk-docs`:
 
@@ -26,7 +28,7 @@ pnpm start:dev
 
 Check: `http://localhost:3000/api/health`.
 
-OpenAPI (not in production): `http://localhost:3000/api/<platform|studio|public>/docs`, JSON at `.../docs/json`.
+OpenAPI (not in production): `http://localhost:3000/api/<platform|organization|public>/docs`, JSON at `.../docs/json`.
 
 ## Commands
 
@@ -46,10 +48,7 @@ OpenAPI (not in production): `http://localhost:3000/api/<platform|studio|public>
 
 ## New table
 
-1. Describe it in `src/database/schema/` and run `pnpm db:generate`.
-2. In the generated migration, add `GRANT` statements for each API user that needs the table, and only the rights it needs.
-3. Add the table to `src/database/expected-grants.ts`.
-4. Run `pnpm db:migrate` and `pnpm test:e2e`.
+Follow the new-table checklist in `studio-desk-docs/03-architecture/backend-structure.md`. The expected-grants file is `src/database/expected-grants.ts`. The organization API login in that file is `studio_api`.
 
 ## Server
 
