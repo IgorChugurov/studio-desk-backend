@@ -7,7 +7,33 @@ import { ownerPool } from './support/db.js';
 import { INSERT_ORGANIZATION } from './support/insert-organization.js';
 
 const OWNER = 'owner@example.com';
-const DAY = '2026-11-03';
+
+/** A Tuesday at least two weeks ahead, so the next three days stay in the future. */
+function futureTuesday(): string {
+  const start = new Date();
+  const day = new Date(
+    Date.UTC(
+      start.getUTCFullYear(),
+      start.getUTCMonth(),
+      start.getUTCDate() + 14,
+    ),
+  );
+  const add = (2 - day.getUTCDay() + 7) % 7;
+  day.setUTCDate(day.getUTCDate() + add);
+  return day.toISOString().slice(0, 10);
+}
+
+function addIsoDays(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year!, (month ?? 1) - 1, (day ?? 1) + days))
+    .toISOString()
+    .slice(0, 10);
+}
+
+const DAY = futureTuesday();
+const DAY_PLUS_1 = addIsoDays(DAY, 1);
+const DAY_PLUS_2 = addIsoDays(DAY, 2);
+const DAY_PLUS_3 = addIsoDays(DAY, 3);
 
 describe('studio schedule', () => {
   let app: INestApplication;
@@ -282,7 +308,7 @@ describe('studio schedule', () => {
       body(ids, {
         startTime: '00:00',
         durationMinutes: 1440,
-        date: '2026-11-04',
+        date: DAY_PLUS_1,
       }),
     );
     expect(day.status).toBe(201);
@@ -305,7 +331,7 @@ describe('studio schedule', () => {
     const back = await owner.post(
       '/api/organization/schedule-slots',
       body(ids, {
-        date: '2026-11-05',
+        date: DAY_PLUS_2,
         startTime: '11:00',
         durationMinutes: 60,
       }),
@@ -313,14 +339,14 @@ describe('studio schedule', () => {
     expect(back.status).toBe(201);
     const touching = await owner.post(
       '/api/organization/schedule-slots',
-      body(ids, { date: '2026-11-05', startTime: '12:00' }),
+      body(ids, { date: DAY_PLUS_2, startTime: '12:00' }),
     );
     expect(touching.status).toBe(201);
 
     await owner.post(`/api/organization/schedule-slots/${back.body.id}/cancel`);
     const afterCancel = await owner.post(
       '/api/organization/schedule-slots',
-      body(ids, { date: '2026-11-05', startTime: '11:00' }),
+      body(ids, { date: DAY_PLUS_2, startTime: '11:00' }),
     );
     expect(afterCancel.status).toBe(201);
 
@@ -328,7 +354,7 @@ describe('studio schedule', () => {
       owner.post(
         '/api/organization/schedule-slots',
         body(ids, {
-          date: '2026-11-06',
+          date: DAY_PLUS_3,
           startTime: '14:00',
           resourceIds: [ids.yoga, ids.boris],
         }),
@@ -336,7 +362,7 @@ describe('studio schedule', () => {
       owner.post(
         '/api/organization/schedule-slots',
         body(ids, {
-          date: '2026-11-06',
+          date: DAY_PLUS_3,
           startTime: '14:00',
           resourceIds: [ids.yoga, ids.boris],
         }),

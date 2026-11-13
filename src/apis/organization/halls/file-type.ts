@@ -50,12 +50,20 @@ export function fileRejection(
   return null;
 }
 
+function isPrintableAscii(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 32 || code > 126) return false;
+  }
+  return value.length > 0;
+}
+
 function isMp4(bytes: Buffer): boolean {
   const at = bytes.subarray(0, Math.min(bytes.length, 64)).indexOf(FTYP);
   if (at < 0 || at + 8 > bytes.length) return false;
   const major = bytes.subarray(at + 4, at + 8).toString('ascii');
   if (AUDIO_MP4_BRANDS.has(major)) return false;
-  return [...major].every((char) => char >= ' ' && char <= '~');
+  return isPrintableAscii(major);
 }
 
 function isWebm(bytes: Buffer): boolean {
